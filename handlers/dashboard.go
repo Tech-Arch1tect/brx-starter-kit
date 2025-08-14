@@ -1,23 +1,31 @@
 package handlers
 
 import (
+	"brx-starter-kit/models"
 	"github.com/labstack/echo/v4"
 	gonertia "github.com/romsar/gonertia/v2"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	"gorm.io/gorm"
 )
 
 type DashboardHandler struct {
 	inertiaSvc *inertia.Service
+	db         *gorm.DB
 }
 
-func NewDashboardHandler(inertiaSvc *inertia.Service) *DashboardHandler {
+func NewDashboardHandler(inertiaSvc *inertia.Service, db *gorm.DB) *DashboardHandler {
 	return &DashboardHandler{
 		inertiaSvc: inertiaSvc,
+		db:         db,
 	}
 }
 
 func (h *DashboardHandler) Dashboard(c echo.Context) error {
+	var userCount int64
+	h.db.Model(&models.User{}).Count(&userCount)
+
 	return h.inertiaSvc.Render(c, "Dashboard", gonertia.Props{
-		"title": "Dashboard",
+		"title":     "Dashboard",
+		"userCount": userCount,
 	})
 }

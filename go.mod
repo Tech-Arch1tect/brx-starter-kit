@@ -7,6 +7,7 @@ require (
 	github.com/romsar/gonertia/v2 v2.0.6
 	github.com/tech-arch1tect/brx v0.0.0
 	go.uber.org/fx v1.24.0
+	gorm.io/gorm v1.30.1
 )
 
 require (
@@ -39,7 +40,6 @@ require (
 	gorm.io/driver/mysql v1.6.0 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
-	gorm.io/gorm v1.30.1 // indirect
 )
 
 replace github.com/tech-arch1tect/brx => ../brx

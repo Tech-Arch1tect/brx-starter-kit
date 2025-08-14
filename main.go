@@ -20,6 +20,7 @@ func main() {
 		brx.WithDatabase(&models.User{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
+		brx.WithAuth(),
 		brx.WithFxOptions(
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),

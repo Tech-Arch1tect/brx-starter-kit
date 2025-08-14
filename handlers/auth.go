@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/inertia"
 	"github.com/tech-arch1tect/brx/session"
 	"gorm.io/gorm"
@@ -14,12 +15,14 @@ import (
 type AuthHandler struct {
 	db         *gorm.DB
 	inertiaSvc *inertia.Service
+	authSvc    *auth.Service
 }
 
-func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service) *AuthHandler {
 	return &AuthHandler{
 		db:         db,
 		inertiaSvc: inertiaSvc,
+		authSvc:    authSvc,
 	}
 }
 
@@ -52,7 +55,12 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	var user models.User
-	if err := h.db.Where("username = ? AND password = ?", req.Username, req.Password).First(&user).Error; err != nil {
+	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+		session.SetFlash(c, "Invalid credentials")
+		return c.Redirect(http.StatusFound, "/login")
+	}
+
+	if err := h.authSvc.VerifyPassword(user.Password, req.Password); err != nil {
 		session.SetFlash(c, "Invalid credentials")
 		return c.Redirect(http.StatusFound, "/login")
 	}
@@ -92,10 +100,16 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/register")
 	}
 
+	hashedPassword, err := h.authSvc.HashPassword(req.Password)
+	if err != nil {
+		session.SetFlash(c, err.Error())
+		return c.Redirect(http.StatusFound, "/register")
+	}
+
 	user := models.User{
 		Username: req.Username,
 		Email:    req.Email,
-		Password: req.Password,
+		Password: hashedPassword,
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
@@ -130,7 +144,8 @@ func (h *AuthHandler) Profile(c echo.Context) error {
 	flash := session.GetFlash(c)
 
 	return h.inertiaSvc.Render(c, "Profile", map[string]any{
-		"user":  user,
-		"flash": flash,
+		"user":        user,
+		"currentUser": user,
+		"flash":       flash,
 	})
 }

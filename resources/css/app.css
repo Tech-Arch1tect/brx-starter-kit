@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles for the brx Inertia example */
+/* Custom styles for the brx Starter Kit */
 .btn {
   @apply px-4 py-2 rounded font-medium transition-colors;
 }

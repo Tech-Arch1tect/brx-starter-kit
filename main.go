@@ -22,6 +22,7 @@ func main() {
 		brx.WithInertia(),
 		brx.WithFxOptions(
 			fx.Provide(handlers.NewDashboardHandler),
+			fx.Provide(handlers.NewAuthHandler),
 			fx.Invoke(routes.RegisterRoutes),
 		),
 	).Run()

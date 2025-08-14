@@ -3,14 +3,29 @@ import Layout from '../components/Layout'
 interface DashboardProps {
   title: string
   userCount: number
+  currentUser: {
+    id: number
+    username: string
+    email: string
+  }
+  flash?: string
 }
 
-export default function Dashboard({ title, userCount }: DashboardProps) {
+export default function Dashboard({ title, userCount, currentUser, flash }: DashboardProps) {
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">{title}</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+            <p className="text-gray-600">Welcome back, <span className="font-semibold">{currentUser.username}</span>!</p>
+          </div>
+          
+          {flash && (
+            <div className="mb-6 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
+              {flash}
+            </div>
+          )}
           
           <div className="grid gap-6 mb-8">
             <div className="bg-white shadow rounded-lg p-6">

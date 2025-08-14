@@ -5,6 +5,7 @@ import (
 	"github.com/labstack/echo/v4"
 	gonertia "github.com/romsar/gonertia/v2"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	"github.com/tech-arch1tect/brx/session"
 	"gorm.io/gorm"
 )
 
@@ -21,11 +22,23 @@ func NewDashboardHandler(inertiaSvc *inertia.Service, db *gorm.DB) *DashboardHan
 }
 
 func (h *DashboardHandler) Dashboard(c echo.Context) error {
+	if !session.IsAuthenticated(c) {
+		return c.Redirect(302, "/login")
+	}
+
 	var userCount int64
 	h.db.Model(&models.User{}).Count(&userCount)
 
+	userID := session.GetUserIDAsUint(c)
+	var currentUser models.User
+	h.db.First(&currentUser, userID)
+
+	flash := session.GetFlash(c)
+
 	return h.inertiaSvc.Render(c, "Dashboard", gonertia.Props{
-		"title":     "Dashboard",
-		"userCount": userCount,
+		"title":       "Dashboard",
+		"userCount":   userCount,
+		"currentUser": currentUser,
+		"flash":       flash,
 	})
 }

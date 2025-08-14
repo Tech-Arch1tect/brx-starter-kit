@@ -1,16 +1,27 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { ReactNode } from 'react';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
+interface User {
+  id: number;
+  username: string;
+  email: string;
+}
+
 export default function Layout({ children }: LayoutProps) {
-  const { url } = usePage();
+  const { url, props } = usePage();
+  const user = props.currentUser as User | undefined;
 
   const navigation = [
     { name: 'Dashboard', href: '/' },
   ];
+
+  const handleLogout = () => {
+    router.post('/logout');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -21,20 +32,54 @@ export default function Layout({ children }: LayoutProps) {
               <Link href="/" className="flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-900">brx Starter Kit</h1>
               </Link>
-              <div className="hidden sm:flex sm:space-x-8">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      url === item.href ? 'text-blue-600 bg-blue-50' : ''
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
+              {user && (
+                <div className="hidden sm:flex sm:space-x-8">
+                  {navigation.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        url === item.href ? 'text-blue-600 bg-blue-50' : ''
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
+            
+            {user ? (
+              <div className="flex items-center space-x-4">
+                <Link 
+                  href="/profile" 
+                  className="text-gray-600 hover:text-gray-900 text-sm font-medium"
+                >
+                  {user.username}
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-4">
+                <Link 
+                  href="/login" 
+                  className="text-gray-600 hover:text-gray-900 text-sm font-medium"
+                >
+                  Login
+                </Link>
+                <Link 
+                  href="/register" 
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </nav>

@@ -26,7 +26,9 @@ export default function Layout({ children }: LayoutProps) {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`nav-link ${url === item.href ? 'active' : ''}`}
+                    className={`text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      url === item.href ? 'text-blue-600 bg-blue-50' : ''
+                    }`}
                   >
                     {item.name}
                   </Link>

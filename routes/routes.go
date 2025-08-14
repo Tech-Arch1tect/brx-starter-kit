@@ -38,9 +38,11 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/logout", authHandler.Logout)
 
-	// User profile route
-	srv.Get("/profile", authHandler.Profile)
+	// Protected routes group
+	protected := srv.Group("")
+	protected.Use(session.RequireAuthWeb("/auth/login"))
 
 	// Protected application routes
-	srv.Get("/", dashboardHandler.Dashboard)
+	protected.GET("/", dashboardHandler.Dashboard)
+	protected.GET("/profile", authHandler.Profile)
 }

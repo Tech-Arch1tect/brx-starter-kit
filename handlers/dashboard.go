@@ -22,10 +22,6 @@ func NewDashboardHandler(inertiaSvc *inertia.Service, db *gorm.DB) *DashboardHan
 }
 
 func (h *DashboardHandler) Dashboard(c echo.Context) error {
-	if !session.IsAuthenticated(c) {
-		return c.Redirect(302, "/auth/login")
-	}
-
 	var userCount int64
 	h.db.Model(&models.User{}).Count(&userCount)
 

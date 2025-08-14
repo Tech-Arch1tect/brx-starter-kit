@@ -130,15 +130,10 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 }
 
 func (h *AuthHandler) Profile(c echo.Context) error {
-	if !session.IsAuthenticated(c) {
-		return c.Redirect(http.StatusFound, "/auth/login")
-	}
-
 	userID := session.GetUserIDAsUint(c)
 	var user models.User
 	if err := h.db.First(&user, userID).Error; err != nil {
-		session.SetFlash(c, "User not found")
-		return c.Redirect(http.StatusFound, "/auth/login")
+		return echo.NewHTTPError(http.StatusInternalServerError, "User not found")
 	}
 
 	flash := session.GetFlash(c)

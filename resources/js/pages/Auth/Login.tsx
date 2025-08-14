@@ -14,7 +14,7 @@ export default function Login({ flash }: LoginProps) {
 
   const submit: FormEventHandler = (e) => {
     e.preventDefault();
-    post('/login');
+    post('/auth/login');
   };
 
   return (
@@ -88,7 +88,7 @@ export default function Login({ flash }: LoginProps) {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{' '}
-                  <a href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+                  <a href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
                     Register here
                   </a>
                 </p>

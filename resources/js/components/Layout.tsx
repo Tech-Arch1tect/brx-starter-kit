@@ -20,7 +20,7 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   const handleLogout = () => {
-    router.post('/logout');
+    router.post('/auth/logout');
   };
 
   return (
@@ -67,13 +67,13 @@ export default function Layout({ children }: LayoutProps) {
             ) : (
               <div className="flex items-center space-x-4">
                 <Link 
-                  href="/login" 
+                  href="/auth/login" 
                   className="text-gray-600 hover:text-gray-900 text-sm font-medium"
                 >
                   Login
                 </Link>
                 <Link 
-                  href="/register" 
+                  href="/auth/register" 
                   className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
                   Register

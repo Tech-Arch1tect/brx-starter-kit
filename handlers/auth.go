@@ -46,23 +46,23 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	if err := c.Bind(&req); err != nil {
 		session.SetFlash(c, "Invalid request")
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	if req.Username == "" || req.Password == "" {
 		session.SetFlash(c, "Username and password are required")
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	var user models.User
 	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
 		session.SetFlash(c, "Invalid credentials")
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	if err := h.authSvc.VerifyPassword(user.Password, req.Password); err != nil {
 		session.SetFlash(c, "Invalid credentials")
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	session.Login(c, user.ID)
@@ -92,18 +92,18 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	if err := c.Bind(&req); err != nil {
 		session.SetFlash(c, "Invalid request")
-		return c.Redirect(http.StatusFound, "/register")
+		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
 	if req.Username == "" || req.Email == "" || req.Password == "" {
 		session.SetFlash(c, "All fields are required")
-		return c.Redirect(http.StatusFound, "/register")
+		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
 	hashedPassword, err := h.authSvc.HashPassword(req.Password)
 	if err != nil {
 		session.SetFlash(c, err.Error())
-		return c.Redirect(http.StatusFound, "/register")
+		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
 	user := models.User{
@@ -114,7 +114,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	if err := h.db.Create(&user).Error; err != nil {
 		session.SetFlash(c, "Username or email already exists")
-		return c.Redirect(http.StatusFound, "/register")
+		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
 	session.Login(c, user.ID)
@@ -126,19 +126,19 @@ func (h *AuthHandler) Register(c echo.Context) error {
 func (h *AuthHandler) Logout(c echo.Context) error {
 	session.Logout(c)
 	session.SetFlash(c, "Logged out successfully")
-	return c.Redirect(http.StatusFound, "/login")
+	return c.Redirect(http.StatusFound, "/auth/login")
 }
 
 func (h *AuthHandler) Profile(c echo.Context) error {
 	if !session.IsAuthenticated(c) {
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	userID := session.GetUserIDAsUint(c)
 	var user models.User
 	if err := h.db.First(&user, userID).Error; err != nil {
 		session.SetFlash(c, "User not found")
-		return c.Redirect(http.StatusFound, "/login")
+		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	flash := session.GetFlash(c)

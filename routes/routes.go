@@ -20,7 +20,8 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	// Static file serving for Vite assets
 	srv.Get("/build/*", echo.WrapHandler(http.StripPrefix("/build/", http.FileServer(http.Dir("public/build")))))
 
-	// Authentication routes with rate limiting
+	// Authentication route group with rate limiting
+	auth := srv.Group("/auth")
 	authRateLimit := ratelimit.WithConfig(&ratelimit.Config{
 		Store:        rateLimitStore,
 		Rate:         5,
@@ -28,12 +29,16 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		CountMode:    config.CountFailures,
 		KeyGenerator: ratelimit.SecureKeyGenerator,
 	})
+	auth.Use(authRateLimit)
 
-	srv.Get("/login", authHandler.ShowLogin)
-	srv.Post("/login", authHandler.Login, authRateLimit)
-	srv.Get("/register", authHandler.ShowRegister)
-	srv.Post("/register", authHandler.Register, authRateLimit)
-	srv.Post("/logout", authHandler.Logout)
+	// Authentication routes (all inherit rate limiting from group)
+	auth.GET("/login", authHandler.ShowLogin)
+	auth.POST("/login", authHandler.Login)
+	auth.GET("/register", authHandler.ShowRegister)
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/logout", authHandler.Logout)
+
+	// User profile route
 	srv.Get("/profile", authHandler.Profile)
 
 	// Protected application routes

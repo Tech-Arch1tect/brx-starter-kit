@@ -1,13 +1,14 @@
-import { useForm } from '@inertiajs/react';
+import { useForm, Head } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import Layout from '../../components/Layout';
 
 interface RegisterProps {
+  title: string;
   flash?: string;
   csrfToken?: string;
 }
 
-export default function Register({ flash, csrfToken }: RegisterProps) {
+export default function Register({ title, flash, csrfToken }: RegisterProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     email: '',
@@ -25,6 +26,7 @@ export default function Register({ flash, csrfToken }: RegisterProps) {
 
   return (
     <Layout>
+      <Head title={title} />
       <div className="min-h-full flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">

@@ -1,4 +1,5 @@
 import Layout from '../components/Layout';
+import { Head } from '@inertiajs/react';
 
 interface User {
   ID: number;
@@ -9,14 +10,16 @@ interface User {
 }
 
 interface ProfileProps {
+  title: string;
   user: User;
   flash?: string;
 }
 
-export default function Profile({ user, flash }: ProfileProps) {
+export default function Profile({ title, user, flash }: ProfileProps) {
   
   return (
     <Layout>
+      <Head title={title} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Profile</h1>

@@ -37,6 +37,7 @@ func (h *AuthHandler) ShowLogin(c echo.Context) error {
 	flash := session.GetFlash(c)
 
 	return h.inertiaSvc.Render(c, "Auth/Login", map[string]any{
+		"title": "Login",
 		"flash": flash,
 	})
 }
@@ -82,6 +83,7 @@ func (h *AuthHandler) ShowRegister(c echo.Context) error {
 	flash := session.GetFlash(c)
 
 	return h.inertiaSvc.Render(c, "Auth/Register", map[string]any{
+		"title": "Register",
 		"flash": flash,
 	})
 }
@@ -142,6 +144,7 @@ func (h *AuthHandler) Profile(c echo.Context) error {
 	flash := session.GetFlash(c)
 
 	return h.inertiaSvc.Render(c, "Profile", map[string]any{
+		"title":       "Profile",
 		"user":        user,
 		"currentUser": user,
 		"flash":       flash,

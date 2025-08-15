@@ -1,4 +1,5 @@
 import Layout from '../components/Layout'
+import { Head } from '@inertiajs/react'
 
 interface DashboardProps {
   title: string
@@ -14,6 +15,7 @@ interface DashboardProps {
 export default function Dashboard({ title, userCount, currentUser, flash }: DashboardProps) {
   return (
     <Layout>
+      <Head title={title} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8">
           <div className="flex justify-between items-center mb-8">

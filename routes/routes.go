@@ -8,14 +8,24 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/config"
+	"github.com/tech-arch1tect/brx/middleware/csrf"
 	"github.com/tech-arch1tect/brx/middleware/ratelimit"
 	"github.com/tech-arch1tect/brx/server"
+	"github.com/tech-arch1tect/brx/services/inertia"
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionManager *session.Manager, rateLimitStore ratelimit.Store) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionManager *session.Manager, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
+
+	// Apply CSRF protection globally if enabled
+	if cfg.CSRF.Enabled {
+		e.Use(csrf.WithConfig(&cfg.CSRF))
+	}
+
+	// Setup custom error handler for better 404/error handling
+	handlers.SetupErrorHandler(e, inertiaService)
 
 	// Static file serving for Vite assets
 	srv.Get("/build/*", echo.WrapHandler(http.StripPrefix("/build/", http.FileServer(http.Dir("public/build")))))

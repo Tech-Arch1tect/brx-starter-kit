@@ -4,12 +4,14 @@ import Layout from '../../components/Layout';
 
 interface LoginProps {
   flash?: string;
+  csrfToken?: string;
 }
 
-export default function Login({ flash }: LoginProps) {
+export default function Login({ flash, csrfToken }: LoginProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     password: '',
+    _token: csrfToken || '',
   });
 
   const submit: FormEventHandler = (e) => {

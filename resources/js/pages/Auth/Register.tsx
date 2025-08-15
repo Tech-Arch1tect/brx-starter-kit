@@ -4,13 +4,15 @@ import Layout from '../../components/Layout';
 
 interface RegisterProps {
   flash?: string;
+  csrfToken?: string;
 }
 
-export default function Register({ flash }: RegisterProps) {
+export default function Register({ flash, csrfToken }: RegisterProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     email: '',
     password: '',
+    _token: csrfToken || '',
   });
 
   const submit: FormEventHandler = (e) => {

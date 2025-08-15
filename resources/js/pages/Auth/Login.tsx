@@ -11,12 +11,15 @@ export default function Login({ flash, csrfToken }: LoginProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     password: '',
-    _token: csrfToken || '',
   });
 
   const submit: FormEventHandler = (e) => {
     e.preventDefault();
-    post('/auth/login');
+    post('/auth/login', {
+      headers: {
+        'X-CSRF-Token': csrfToken || '',
+      },
+    });
   };
 
   return (
@@ -87,13 +90,21 @@ export default function Login({ flash, csrfToken }: LoginProps) {
                 </button>
               </div>
 
-              <div className="text-center">
-                <p className="text-sm text-gray-600">
-                  Don't have an account?{' '}
-                  <a href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
-                    Register here
+              <div className="space-y-2">
+                <div className="text-center">
+                  <a href="/auth/password-reset" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                    Forgot your password?
                   </a>
-                </p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">
+                    Don't have an account?{' '}
+                    <a href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+                      Register here
+                    </a>
+                  </p>
+                </div>
               </div>
             </form>
           </div>

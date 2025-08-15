@@ -4,6 +4,7 @@ import (
 	"brx-starter-kit/handlers"
 	"brx-starter-kit/models"
 	"brx-starter-kit/routes"
+
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
 	"go.uber.org/fx"
@@ -17,11 +18,11 @@ func main() {
 
 	brx.New(
 		brx.WithConfig(&cfg),
+		brx.WithMail(),
 		brx.WithDatabase(&models.User{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),
-		brx.WithMail(),
 		brx.WithFxOptions(
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),

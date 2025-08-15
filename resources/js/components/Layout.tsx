@@ -14,13 +14,18 @@ interface User {
 export default function Layout({ children }: LayoutProps) {
   const { url, props } = usePage();
   const user = props.currentUser as User | undefined;
+  const csrfToken = props.csrfToken as string | undefined;
 
   const navigation = [
     { name: 'Dashboard', href: '/' },
   ];
 
   const handleLogout = () => {
-    router.post('/auth/logout');
+    router.post('/auth/logout', {}, {
+      headers: {
+        'X-CSRF-Token': csrfToken || '',
+      },
+    });
   };
 
   return (

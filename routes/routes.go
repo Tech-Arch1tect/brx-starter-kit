@@ -42,6 +42,12 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/logout", authHandler.Logout)
 
+	// Password reset routes
+	auth.GET("/password-reset", authHandler.ShowPasswordReset)
+	auth.POST("/password-reset", authHandler.RequestPasswordReset)
+	auth.GET("/password-reset/confirm", authHandler.ShowPasswordResetConfirm)
+	auth.POST("/password-reset/confirm", authHandler.ConfirmPasswordReset)
+
 	// Protected routes group
 	protected := srv.Group("")
 	protected.Use(session.RequireAuthWeb("/auth/login"))

@@ -12,12 +12,15 @@ export default function Register({ flash, csrfToken }: RegisterProps) {
     username: '',
     email: '',
     password: '',
-    _token: csrfToken || '',
   });
 
   const submit: FormEventHandler = (e) => {
     e.preventDefault();
-    post('/auth/register');
+    post('/auth/register', {
+      headers: {
+        'X-CSRF-Token': csrfToken || '',
+      },
+    });
   };
 
   return (

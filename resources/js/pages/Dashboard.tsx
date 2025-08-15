@@ -1,15 +1,15 @@
-import Layout from '../components/Layout'
-import { Head } from '@inertiajs/react'
+import Layout from '../components/Layout';
+import { Head } from '@inertiajs/react';
 
 interface DashboardProps {
-  title: string
-  userCount: number
+  title: string;
+  userCount: number;
   currentUser: {
-    id: number
-    username: string
-    email: string
-  }
-  flash?: string
+    id: number;
+    username: string;
+    email: string;
+  };
+  flash?: string;
 }
 
 export default function Dashboard({ title, userCount, currentUser, flash }: DashboardProps) {
@@ -20,15 +20,15 @@ export default function Dashboard({ title, userCount, currentUser, flash }: Dash
         <div className="py-8">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
-            <p className="text-gray-600">Welcome back, <span className="font-semibold">{currentUser.username}</span>!</p>
+            <p className="text-gray-600">
+              Welcome back, <span className="font-semibold">{currentUser.username}</span>!
+            </p>
           </div>
-          
+
           {flash && (
-            <div className="mb-6 p-4 text-sm text-green-700 bg-green-100 rounded-lg">
-              {flash}
-            </div>
+            <div className="mb-6 p-4 text-sm text-green-700 bg-green-100 rounded-lg">{flash}</div>
           )}
-          
+
           <div className="grid gap-6 mb-8">
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">
@@ -40,11 +40,12 @@ export default function Dashboard({ title, userCount, currentUser, flash }: Dash
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h3 className="font-medium text-blue-900 mb-1">Database Connection</h3>
                 <p className="text-blue-700 text-sm">
-                  Successfully connected! Current user count: <span className="font-bold">{userCount}</span>
+                  Successfully connected! Current user count:{' '}
+                  <span className="font-bold">{userCount}</span>
                 </p>
               </div>
             </div>
-            
+
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Features</h3>
@@ -71,7 +72,7 @@ export default function Dashboard({ title, userCount, currentUser, flash }: Dash
                   </li>
                 </ul>
               </div>
-              
+
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Next Steps</h3>
                 <ul className="space-y-2 text-gray-600">
@@ -98,5 +99,5 @@ export default function Dashboard({ title, userCount, currentUser, flash }: Dash
         </div>
       </div>
     </Layout>
-  )
+  );
 }

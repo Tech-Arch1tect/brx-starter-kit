@@ -6,11 +6,13 @@ import { createInertiaApp, router } from '@inertiajs/react';
 
 const appName = 'brx Starter Kit';
 
-
 createInertiaApp({
   title: (title) => `${title} - ${appName}`,
   resolve: (name) => {
-    const pages = import.meta.glob('./pages/**/*.tsx', { eager: true }) as Record<string, { default: React.ComponentType<any> }>;
+    const pages = import.meta.glob('./pages/**/*.tsx', { eager: true }) as Record<
+      string,
+      { default: React.ComponentType<any> }
+    >;
     const page = pages[`./pages/${name}.tsx`];
     if (!page) {
       throw new Error(`Page not found: ${name}`);

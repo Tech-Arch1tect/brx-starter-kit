@@ -35,9 +35,7 @@ export default function Login({ flash, csrfToken }: LoginProps) {
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
             {flash && (
-              <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">
-                {flash}
-              </div>
+              <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">{flash}</div>
             )}
 
             <form className="space-y-6" onSubmit={submit}>
@@ -93,15 +91,21 @@ export default function Login({ flash, csrfToken }: LoginProps) {
 
               <div className="space-y-2">
                 <div className="text-center">
-                  <Link href="/auth/password-reset" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                  <Link
+                    href="/auth/password-reset"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                  >
                     Forgot your password?
                   </Link>
                 </div>
-                
+
                 <div className="text-center">
                   <p className="text-sm text-gray-600">
                     Don't have an account?{' '}
-                    <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+                    <Link
+                      href="/auth/register"
+                      className="font-medium text-blue-600 hover:text-blue-500"
+                    >
                       Register here
                     </Link>
                   </p>

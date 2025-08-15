@@ -21,6 +21,7 @@ func main() {
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),
+		brx.WithMail(),
 		brx.WithFxOptions(
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),

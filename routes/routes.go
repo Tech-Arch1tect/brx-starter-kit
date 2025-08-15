@@ -14,9 +14,14 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionManager *session.Manager, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionHandler *handlers.SessionHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
+
+	// Add session service middleware if available
+	if sessionService != nil {
+		e.Use(session.SessionServiceMiddleware(sessionService))
+	}
 
 	// Setup custom error handler for better 404/error handling
 	handlers.SetupErrorHandler(e, inertiaService)
@@ -55,4 +60,11 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	// Protected application routes
 	protected.GET("/", dashboardHandler.Dashboard)
 	protected.GET("/profile", authHandler.Profile)
+
+	// Session management routes
+	if sessionHandler != nil {
+		protected.GET("/sessions", sessionHandler.Sessions)
+		protected.POST("/sessions/revoke", sessionHandler.RevokeSession)
+		protected.POST("/sessions/revoke-all-others", sessionHandler.RevokeAllOtherSessions)
+	}
 }

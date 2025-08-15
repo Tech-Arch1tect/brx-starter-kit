@@ -1,4 +1,4 @@
-import { useForm, Head } from '@inertiajs/react';
+import { useForm, Head, Link } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import Layout from '../../components/Layout';
 
@@ -116,9 +116,9 @@ export default function Register({ title, flash, csrfToken }: RegisterProps) {
               <div className="text-center">
                 <p className="text-sm text-gray-600">
                   Already have an account?{' '}
-                  <a href="/auth/login" className="font-medium text-blue-600 hover:text-blue-500">
+                  <Link href="/auth/login" className="font-medium text-blue-600 hover:text-blue-500">
                     Sign in here
-                  </a>
+                  </Link>
                 </p>
               </div>
             </form>

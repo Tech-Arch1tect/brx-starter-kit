@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, Link } from '@inertiajs/react';
 import Layout from '../../components/Layout';
 
 interface Props {
@@ -101,12 +101,12 @@ export default function PasswordResetConfirm({ token, flash, csrfToken }: Props)
                         </div>
 
                         <div className="text-center">
-                            <a
+                            <Link
                                 href="/auth/login"
                                 className="font-medium text-indigo-600 hover:text-indigo-500"
                             >
                                 Back to login
-                            </a>
+                            </Link>
                         </div>
                     </form>
                 </div>

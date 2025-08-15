@@ -1,4 +1,4 @@
-import { useForm, Head } from '@inertiajs/react';
+import { useForm, Head, Link } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import Layout from '../../components/Layout';
 
@@ -93,17 +93,17 @@ export default function Login({ flash, csrfToken }: LoginProps) {
 
               <div className="space-y-2">
                 <div className="text-center">
-                  <a href="/auth/password-reset" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+                  <Link href="/auth/password-reset" className="text-sm font-medium text-blue-600 hover:text-blue-500">
                     Forgot your password?
-                  </a>
+                  </Link>
                 </div>
                 
                 <div className="text-center">
                   <p className="text-sm text-gray-600">
                     Don't have an account?{' '}
-                    <a href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+                    <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
                       Register here
-                    </a>
+                    </Link>
                   </p>
                 </div>
               </div>

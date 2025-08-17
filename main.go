@@ -24,7 +24,7 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}),
+		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),

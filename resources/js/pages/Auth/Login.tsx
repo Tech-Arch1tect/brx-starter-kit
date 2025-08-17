@@ -6,12 +6,20 @@ import FlashMessages from '../../components/FlashMessages';
 interface LoginProps {
   csrfToken?: string;
   emailVerificationEnabled?: boolean;
+  rememberMeEnabled?: boolean;
+  rememberMeDays?: number;
 }
 
-export default function Login({ csrfToken, emailVerificationEnabled }: LoginProps) {
+export default function Login({
+  csrfToken,
+  emailVerificationEnabled,
+  rememberMeEnabled,
+  rememberMeDays,
+}: LoginProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     password: '',
+    remember_me: false,
   });
 
   const submit: FormEventHandler = (e) => {
@@ -77,6 +85,22 @@ export default function Login({ csrfToken, emailVerificationEnabled }: LoginProp
                   )}
                 </div>
               </div>
+
+              {rememberMeEnabled && (
+                <div className="flex items-center">
+                  <input
+                    id="remember_me"
+                    name="remember_me"
+                    type="checkbox"
+                    checked={data.remember_me}
+                    onChange={(e) => setData('remember_me', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="remember_me" className="ml-2 block text-sm text-gray-900">
+                    Remember me for {rememberMeDays || 30} days
+                  </label>
+                </div>
+              )}
 
               <div>
                 <button

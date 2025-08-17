@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/auth"
@@ -16,6 +17,52 @@ import (
 
 	"brx-starter-kit/models"
 )
+
+func (h *AuthHandler) setRememberMeCookie(c echo.Context, token string, expiresAt time.Time) {
+	sameSite := http.SameSiteLaxMode
+	switch h.authSvc.GetRememberMeCookieSameSite() {
+	case "strict":
+		sameSite = http.SameSiteStrictMode
+	case "none":
+		sameSite = http.SameSiteNoneMode
+	case "lax":
+		sameSite = http.SameSiteLaxMode
+	}
+
+	cookie := &http.Cookie{
+		Name:     "remember_me",
+		Value:    token,
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   h.authSvc.GetRememberMeCookieSecure(),
+		SameSite: sameSite,
+		Path:     "/",
+	}
+	c.SetCookie(cookie)
+}
+
+func (h *AuthHandler) clearRememberMeCookie(c echo.Context) {
+	sameSite := http.SameSiteLaxMode
+	switch h.authSvc.GetRememberMeCookieSameSite() {
+	case "strict":
+		sameSite = http.SameSiteStrictMode
+	case "none":
+		sameSite = http.SameSiteNoneMode
+	case "lax":
+		sameSite = http.SameSiteLaxMode
+	}
+
+	cookie := &http.Cookie{
+		Name:     "remember_me",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   h.authSvc.GetRememberMeCookieSecure(),
+		SameSite: sameSite,
+		Path:     "/",
+	}
+	c.SetCookie(cookie)
+}
 
 type AuthHandler struct {
 	db         *gorm.DB
@@ -38,16 +85,48 @@ func (h *AuthHandler) ShowLogin(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/")
 	}
 
+	if h.authSvc.IsRememberMeEnabled() {
+		cookie, err := c.Cookie("remember_me")
+		if err == nil && cookie.Value != "" {
+			rememberToken, err := h.authSvc.ValidateRememberMeToken(cookie.Value)
+			if err == nil {
+				var user models.User
+				if err := h.db.First(&user, rememberToken.UserID).Error; err == nil {
+					session.LoginWithTOTPService(c, user.ID, h.totpSvc)
+
+					if h.authSvc.ShouldRotateRememberMeToken() {
+						newToken, err := h.authSvc.RotateRememberMeToken(cookie.Value)
+						if err != nil {
+							log.Printf("Failed to rotate remember me token: %v", err)
+						} else {
+							h.setRememberMeCookie(c, newToken.Token, newToken.ExpiresAt)
+						}
+					}
+
+					return c.Redirect(http.StatusFound, "/")
+				}
+			}
+		}
+	}
+
+	var rememberMeDays int
+	if h.authSvc.IsRememberMeEnabled() {
+		rememberMeDays = int(h.authSvc.GetRememberMeExpiry().Hours() / 24)
+	}
+
 	return h.inertiaSvc.Render(c, "Auth/Login", map[string]any{
 		"title":                    "Login",
 		"emailVerificationEnabled": h.authSvc.IsEmailVerificationRequired(),
+		"rememberMeEnabled":        h.authSvc.IsRememberMeEnabled(),
+		"rememberMeDays":           rememberMeDays,
 	})
 }
 
 func (h *AuthHandler) Login(c echo.Context) error {
 	var req struct {
-		Username string `form:"username" json:"username"`
-		Password string `form:"password" json:"password"`
+		Username   string `form:"username" json:"username"`
+		Password   string `form:"password" json:"password"`
+		RememberMe bool   `form:"remember_me" json:"remember_me"`
 	}
 
 	if err := c.Bind(&req); err != nil {
@@ -79,6 +158,16 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	session.LoginWithTOTPService(c, user.ID, h.totpSvc)
+
+	if h.authSvc.IsRememberMeEnabled() && req.RememberMe {
+		rememberToken, err := h.authSvc.CreateRememberMeToken(user.ID)
+		if err != nil {
+			log.Printf("Failed to create remember me token for user %d: %v", user.ID, err)
+		} else {
+			h.setRememberMeCookie(c, rememberToken.Token, rememberToken.ExpiresAt)
+		}
+	}
+
 	session.AddFlashSuccess(c, "Login successful!")
 	session.AddFlashInfo(c, "Welcome back! Your last login was recorded.")
 
@@ -161,6 +250,17 @@ func (h *AuthHandler) Register(c echo.Context) error {
 }
 
 func (h *AuthHandler) Logout(c echo.Context) error {
+	userID := session.GetUserID(c)
+	if h.authSvc.IsRememberMeEnabled() && userID != nil {
+		if userIDUint, ok := userID.(uint); ok && userIDUint > 0 {
+			if err := h.authSvc.InvalidateRememberMeTokens(userIDUint); err != nil {
+				log.Printf("Failed to invalidate remember me tokens for user %d: %v", userIDUint, err)
+			}
+		}
+
+		h.clearRememberMeCookie(c)
+	}
+
 	session.Logout(c)
 	session.AddFlashSuccess(c, "Logged out successfully")
 	return c.Redirect(http.StatusFound, "/auth/login")

@@ -1,14 +1,14 @@
 import { useForm, Head, Link } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import Layout from '../../components/Layout';
+import FlashMessages from '../../components/FlashMessages';
 
 interface RegisterProps {
   title: string;
-  flash?: string;
   csrfToken?: string;
 }
 
-export default function Register({ title, flash, csrfToken }: RegisterProps) {
+export default function Register({ title, csrfToken }: RegisterProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     email: '',
@@ -36,9 +36,7 @@ export default function Register({ title, flash, csrfToken }: RegisterProps) {
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-            {flash && (
-              <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">{flash}</div>
-            )}
+            <FlashMessages className="mb-4" />
 
             <form className="space-y-6" onSubmit={submit}>
               <div>

@@ -1,4 +1,5 @@
 import Layout from '../components/Layout';
+import FlashMessages from '../components/FlashMessages';
 import { Head } from '@inertiajs/react';
 
 interface DashboardProps {
@@ -9,10 +10,9 @@ interface DashboardProps {
     username: string;
     email: string;
   };
-  flash?: string;
 }
 
-export default function Dashboard({ title, userCount, currentUser, flash }: DashboardProps) {
+export default function Dashboard({ title, userCount, currentUser }: DashboardProps) {
   return (
     <Layout>
       <Head title={title} />
@@ -25,9 +25,7 @@ export default function Dashboard({ title, userCount, currentUser, flash }: Dash
             </p>
           </div>
 
-          {flash && (
-            <div className="mb-6 p-4 text-sm text-green-700 bg-green-100 rounded-lg">{flash}</div>
-          )}
+          <FlashMessages className="mb-6" />
 
           <div className="grid gap-6 mb-8">
             <div className="bg-white shadow rounded-lg p-6">

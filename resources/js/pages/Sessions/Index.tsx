@@ -1,4 +1,5 @@
 import Layout from '../../components/Layout';
+import FlashMessages from '../../components/FlashMessages';
 import { Head, useForm, usePage, router } from '@inertiajs/react';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -34,10 +35,9 @@ interface Session {
 
 interface SessionsProps {
   sessions: Session[];
-  flash?: string;
 }
 
-export default function SessionsIndex({ sessions, flash }: SessionsProps) {
+export default function SessionsIndex({ sessions }: SessionsProps) {
   const { processing } = useForm();
   const { props } = usePage();
   const csrfToken = props.csrfToken as string | undefined;
@@ -130,9 +130,7 @@ export default function SessionsIndex({ sessions, flash }: SessionsProps) {
             )}
           </div>
 
-          {flash && (
-            <div className="mb-6 p-4 text-sm text-green-700 bg-green-100 rounded-lg">{flash}</div>
-          )}
+          <FlashMessages className="mb-6" />
 
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">

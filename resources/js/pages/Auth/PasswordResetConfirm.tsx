@@ -1,14 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import Layout from '../../components/Layout';
+import FlashMessages from '../../components/FlashMessages';
 
 interface Props {
   token: string;
-  flash?: string;
   csrfToken?: string;
 }
 
-export default function PasswordResetConfirm({ token, flash, csrfToken }: Props) {
+export default function PasswordResetConfirm({ token, csrfToken }: Props) {
   const { data, setData, post, processing, errors } = useForm({
     token: token,
     password: '',
@@ -38,11 +38,7 @@ export default function PasswordResetConfirm({ token, flash, csrfToken }: Props)
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            {flash && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="text-sm text-red-700">{flash}</div>
-              </div>
-            )}
+            <FlashMessages />
 
             <input type="hidden" name="token" value={data.token} />
 

@@ -1,13 +1,13 @@
 import { FormEvent, useState } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import Layout from '../../components/Layout';
+import FlashMessages from '../../components/FlashMessages';
 
 interface Props {
-  flash?: string;
   csrfToken?: string;
 }
 
-export default function PasswordReset({ flash, csrfToken }: Props) {
+export default function PasswordReset({ csrfToken }: Props) {
   const { data, setData, post, processing, errors } = useForm({
     email: '',
   });
@@ -37,11 +37,7 @@ export default function PasswordReset({ flash, csrfToken }: Props) {
           </div>
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            {flash && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="text-sm text-red-700">{flash}</div>
-              </div>
-            )}
+            <FlashMessages />
 
             <div>
               <label htmlFor="email" className="sr-only">

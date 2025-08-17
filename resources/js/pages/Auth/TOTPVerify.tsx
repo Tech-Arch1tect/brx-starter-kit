@@ -1,10 +1,9 @@
 import { Head, useForm } from '@inertiajs/react';
 import Layout from '../../components/Layout';
-import { FlashMessage } from '../../types';
+import FlashMessages from '../../components/FlashMessages';
 
 interface Props {
   title: string;
-  flash?: FlashMessage;
   csrfToken?: string;
 }
 
@@ -12,7 +11,7 @@ interface FormData {
   code: string;
 }
 
-export default function TOTPVerify({ title, flash, csrfToken }: Props) {
+export default function TOTPVerify({ title, csrfToken }: Props) {
   const { data, setData, post, processing, errors } = useForm<FormData>({
     code: '',
   });
@@ -41,21 +40,7 @@ export default function TOTPVerify({ title, flash, csrfToken }: Props) {
             </p>
           </div>
 
-          {flash && (
-            <div
-              className={`px-4 py-3 rounded ${
-                flash.type === 'success'
-                  ? 'text-green-700 bg-green-50 border border-green-200'
-                  : flash.type === 'error'
-                    ? 'text-red-700 bg-red-50 border border-red-200'
-                    : flash.type === 'warning'
-                      ? 'text-yellow-700 bg-yellow-50 border border-yellow-200'
-                      : 'text-blue-700 bg-blue-50 border border-blue-200'
-              }`}
-            >
-              {flash.message}
-            </div>
-          )}
+          <FlashMessages />
 
           <form className="mt-8 space-y-6" onSubmit={submit}>
             <div>

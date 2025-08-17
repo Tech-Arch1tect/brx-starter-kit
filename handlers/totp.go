@@ -38,13 +38,13 @@ func (h *TOTPHandler) ShowSetup(c echo.Context) error {
 	}
 
 	if h.totpSvc.IsUserTOTPEnabled(userID) {
-		session.SetFlash(c, "TOTP is already enabled for your account")
+		session.AddFlashError(c, "TOTP is already enabled for your account")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	existing, err := h.totpSvc.GetSecret(userID)
 	if err != nil && err != totp.ErrSecretNotFound {
-		session.SetFlash(c, "Failed to retrieve TOTP information")
+		session.AddFlashError(c, "Failed to retrieve TOTP information")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
@@ -54,24 +54,21 @@ func (h *TOTPHandler) ShowSetup(c echo.Context) error {
 	} else {
 		secret, err = h.totpSvc.GenerateSecret(userID, user.Email)
 		if err != nil {
-			session.SetFlash(c, "Failed to generate TOTP secret")
+			session.AddFlashError(c, "Failed to generate TOTP secret")
 			return c.Redirect(http.StatusFound, "/profile")
 		}
 	}
 
 	qrCodeURI, err := h.totpSvc.GenerateProvisioningURI(secret, user.Email)
 	if err != nil {
-		session.SetFlash(c, "Failed to generate QR code")
+		session.AddFlashError(c, "Failed to generate QR code")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
-
-	flash := session.GetFlashWithType(c)
 
 	return h.inertiaSvc.Render(c, "Auth/TOTPSetup", map[string]any{
 		"title":     "Setup Two-Factor Authentication",
 		"qrCodeURI": qrCodeURI,
 		"secret":    secret.Secret,
-		"flash":     flash,
 	})
 }
 
@@ -83,26 +80,26 @@ func (h *TOTPHandler) EnableTOTP(c echo.Context) error {
 	}
 
 	if err := c.Bind(&req); err != nil {
-		session.SetFlash(c, "Invalid request")
+		session.AddFlashError(c, "Invalid request")
 		return c.Redirect(http.StatusFound, "/auth/totp/setup")
 	}
 
 	if req.Code == "" {
-		session.SetFlash(c, "TOTP code is required")
+		session.AddFlashError(c, "TOTP code is required")
 		return c.Redirect(http.StatusFound, "/auth/totp/setup")
 	}
 
 	if err := h.totpSvc.EnableTOTP(userID, req.Code); err != nil {
 		if err == totp.ErrInvalidCode {
-			session.SetFlash(c, "Invalid TOTP code. Please try again.")
+			session.AddFlashError(c, "Invalid TOTP code. Please try again.")
 		} else {
-			session.SetFlash(c, "Failed to enable TOTP")
+			session.AddFlashError(c, "Failed to enable TOTP")
 		}
 		return c.Redirect(http.StatusFound, "/auth/totp/setup")
 	}
 
 	session.SetTOTPEnabled(c, true)
-	session.SetFlashSuccess(c, "Two-factor authentication has been enabled successfully!")
+	session.AddFlashSuccess(c, "Two-factor authentication has been enabled successfully!")
 	return c.Redirect(http.StatusFound, "/profile")
 }
 
@@ -115,38 +112,38 @@ func (h *TOTPHandler) DisableTOTP(c echo.Context) error {
 	}
 
 	if err := c.Bind(&req); err != nil {
-		session.SetFlash(c, "Invalid request")
+		session.AddFlashError(c, "Invalid request")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	if req.Code == "" || req.Password == "" {
-		session.SetFlash(c, "TOTP code and password are required to disable 2FA")
+		session.AddFlashError(c, "TOTP code and password are required to disable 2FA")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	var user models.User
 	if err := h.db.First(&user, userID).Error; err != nil {
-		session.SetFlash(c, "User not found")
+		session.AddFlashError(c, "User not found")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	if err := h.authSvc.VerifyPassword(user.Password, req.Password); err != nil {
-		session.SetFlash(c, "Invalid password")
+		session.AddFlashError(c, "Invalid password")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	if err := h.totpSvc.VerifyUserCode(userID, req.Code); err != nil {
-		session.SetFlash(c, "Invalid TOTP code")
+		session.AddFlashError(c, "Invalid TOTP code")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	if err := h.totpSvc.DisableTOTP(userID); err != nil {
-		session.SetFlash(c, "Failed to disable TOTP")
+		session.AddFlashError(c, "Failed to disable TOTP")
 		return c.Redirect(http.StatusFound, "/profile")
 	}
 
 	session.SetTOTPEnabled(c, false)
-	session.SetFlashSuccess(c, "Two-factor authentication has been disabled")
+	session.AddFlashSuccess(c, "Two-factor authentication has been disabled")
 	return c.Redirect(http.StatusFound, "/profile")
 }
 
@@ -165,11 +162,8 @@ func (h *TOTPHandler) ShowVerify(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/")
 	}
 
-	flash := session.GetFlashWithType(c)
-
 	return h.inertiaSvc.Render(c, "Auth/TOTPVerify", map[string]any{
 		"title": "Two-Factor Authentication",
-		"flash": flash,
 	})
 }
 
@@ -185,17 +179,17 @@ func (h *TOTPHandler) VerifyTOTP(c echo.Context) error {
 	}
 
 	if err := c.Bind(&req); err != nil {
-		session.SetFlash(c, "Invalid request")
+		session.AddFlashError(c, "Invalid request")
 		return c.Redirect(http.StatusFound, "/auth/totp/verify")
 	}
 
 	if req.Code == "" {
-		session.SetFlash(c, "TOTP code is required")
+		session.AddFlashError(c, "TOTP code is required")
 		return c.Redirect(http.StatusFound, "/auth/totp/verify")
 	}
 
 	if err := h.totpSvc.VerifyUserCode(userID, req.Code); err != nil {
-		session.SetFlash(c, "Invalid TOTP code. Please try again.")
+		session.AddFlashError(c, "Invalid TOTP code. Please try again.")
 		return c.Redirect(http.StatusFound, "/auth/totp/verify")
 	}
 

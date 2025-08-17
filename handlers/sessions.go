@@ -3,8 +3,6 @@ package handlers
 import (
 	"net/http"
 
-	"brx-starter-kit/models"
-
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/inertia"
 	"github.com/tech-arch1tect/brx/session"
@@ -69,15 +67,8 @@ func (h *SessionHandler) Sessions(c echo.Context) error {
 		}
 	}
 
-	var currentUser models.User
-	h.db.First(&currentUser, userID)
-
-	flash := session.GetFlash(c)
-
 	return h.inertiaSvc.Render(c, "Sessions/Index", map[string]any{
-		"sessions":    sessionData,
-		"currentUser": currentUser,
-		"flash":       flash,
+		"sessions": sessionData,
 	})
 }
 
@@ -108,7 +99,7 @@ func (h *SessionHandler) RevokeSession(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke session")
 	}
 
-	session.SetFlashSuccess(c, "Session revoked successfully")
+	session.AddFlashSuccess(c, "Session revoked successfully")
 
 	if c.Request().Header.Get("Accept") == "application/json" {
 		return c.JSON(http.StatusOK, map[string]string{
@@ -144,7 +135,7 @@ func (h *SessionHandler) RevokeAllOtherSessions(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
 	}
 
-	session.SetFlashSuccess(c, "All other sessions revoked successfully")
+	session.AddFlashSuccess(c, "All other sessions revoked successfully")
 
 	if c.Request().Header.Get("Accept") == "application/json" {
 		return c.JSON(http.StatusOK, map[string]string{

@@ -3,10 +3,12 @@ package main
 import (
 	"brx-starter-kit/handlers"
 	"brx-starter-kit/models"
+	"brx-starter-kit/providers"
 	"brx-starter-kit/routes"
 
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
+	"github.com/tech-arch1tect/brx/middleware/inertiashared"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
@@ -31,6 +33,10 @@ func main() {
 			fx.Provide(handlers.NewAuthHandler),
 			fx.Provide(handlers.NewSessionHandler),
 			fx.Provide(handlers.NewTOTPHandler),
+			fx.Provide(fx.Annotate(
+				providers.NewUserProvider,
+				fx.As(new(inertiashared.UserProvider)),
+			)),
 			fx.Invoke(routes.RegisterRoutes),
 		),
 	).Run()

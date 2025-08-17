@@ -7,6 +7,7 @@ import (
 
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
+	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
 )
@@ -20,14 +21,16 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}),
+		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),
+		brx.WithTOTP(),
 		brx.WithFxOptions(
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),
 			fx.Provide(handlers.NewSessionHandler),
+			fx.Provide(handlers.NewTOTPHandler),
 			fx.Invoke(routes.RegisterRoutes),
 		),
 	).Run()

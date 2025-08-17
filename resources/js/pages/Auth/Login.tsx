@@ -1,9 +1,10 @@
 import { useForm, Head, Link } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import Layout from '../../components/Layout';
+import { FlashMessage } from '../../types';
 
 interface LoginProps {
-  flash?: string;
+  flash?: FlashMessage;
   csrfToken?: string;
 }
 
@@ -35,7 +36,19 @@ export default function Login({ flash, csrfToken }: LoginProps) {
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
             {flash && (
-              <div className="mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg">{flash}</div>
+              <div
+                className={`mb-4 p-4 text-sm rounded-lg ${
+                  flash.type === 'success'
+                    ? 'text-green-700 bg-green-100 border border-green-200'
+                    : flash.type === 'error'
+                      ? 'text-red-700 bg-red-100 border border-red-200'
+                      : flash.type === 'warning'
+                        ? 'text-yellow-700 bg-yellow-100 border border-yellow-200'
+                        : 'text-blue-700 bg-blue-100 border border-blue-200'
+                }`}
+              >
+                {flash.message}
+              </div>
             )}
 
             <form className="space-y-6" onSubmit={submit}>

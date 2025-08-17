@@ -108,7 +108,7 @@ func (h *SessionHandler) RevokeSession(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke session")
 	}
 
-	session.SetFlash(c, "Session revoked successfully")
+	session.SetFlashSuccess(c, "Session revoked successfully")
 
 	if c.Request().Header.Get("Accept") == "application/json" {
 		return c.JSON(http.StatusOK, map[string]string{
@@ -144,7 +144,7 @@ func (h *SessionHandler) RevokeAllOtherSessions(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to revoke sessions")
 	}
 
-	session.SetFlash(c, "All other sessions revoked successfully")
+	session.SetFlashSuccess(c, "All other sessions revoked successfully")
 
 	if c.Request().Header.Get("Accept") == "application/json" {
 		return c.JSON(http.StatusOK, map[string]string{

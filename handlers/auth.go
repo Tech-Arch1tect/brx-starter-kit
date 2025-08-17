@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"gorm.io/gorm"
 
@@ -19,13 +20,15 @@ type AuthHandler struct {
 	db         *gorm.DB
 	inertiaSvc *inertia.Service
 	authSvc    *auth.Service
+	totpSvc    *totp.Service
 }
 
-func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service, totpSvc *totp.Service) *AuthHandler {
 	return &AuthHandler{
 		db:         db,
 		inertiaSvc: inertiaSvc,
 		authSvc:    authSvc,
+		totpSvc:    totpSvc,
 	}
 }
 
@@ -34,7 +37,7 @@ func (h *AuthHandler) ShowLogin(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/")
 	}
 
-	flash := session.GetFlash(c)
+	flash := session.GetFlashWithType(c)
 
 	return h.inertiaSvc.Render(c, "Auth/Login", map[string]any{
 		"title": "Login",
@@ -69,8 +72,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
-	session.Login(c, user.ID)
-	session.SetFlash(c, "Login successful!")
+	session.LoginWithTOTPService(c, user.ID, h.totpSvc)
+	session.SetFlashSuccess(c, "Login successful!")
 
 	return c.Redirect(http.StatusFound, "/")
 }
@@ -80,7 +83,7 @@ func (h *AuthHandler) ShowRegister(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/")
 	}
 
-	flash := session.GetFlash(c)
+	flash := session.GetFlashWithType(c)
 
 	return h.inertiaSvc.Render(c, "Auth/Register", map[string]any{
 		"title": "Register",
@@ -122,15 +125,15 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
-	session.Login(c, user.ID)
-	session.SetFlash(c, "Account created successfully!")
+	session.LoginWithTOTPService(c, user.ID, h.totpSvc)
+	session.SetFlashSuccess(c, "Account created successfully!")
 
 	return c.Redirect(http.StatusFound, "/")
 }
 
 func (h *AuthHandler) Logout(c echo.Context) error {
 	session.Logout(c)
-	session.SetFlash(c, "Logged out successfully")
+	session.SetFlashSuccess(c, "Logged out successfully")
 	return c.Redirect(http.StatusFound, "/auth/login")
 }
 
@@ -141,7 +144,7 @@ func (h *AuthHandler) Profile(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "User not found")
 	}
 
-	flash := session.GetFlash(c)
+	flash := session.GetFlashWithType(c)
 
 	return h.inertiaSvc.Render(c, "Profile", map[string]any{
 		"title":       "Profile",
@@ -294,6 +297,6 @@ func (h *AuthHandler) ConfirmPasswordReset(c echo.Context) error {
 		}
 	}
 
-	session.SetFlash(c, "Your password has been reset successfully. Please log in with your new password.")
+	session.SetFlashSuccess(c, "Your password has been reset successfully. Please log in with your new password.")
 	return c.Redirect(http.StatusFound, "/auth/login")
 }

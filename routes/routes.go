@@ -14,7 +14,7 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionHandler *handlers.SessionHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
 
@@ -53,13 +53,32 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	auth.GET("/password-reset/confirm", authHandler.ShowPasswordResetConfirm)
 	auth.POST("/password-reset/confirm", authHandler.ConfirmPasswordReset)
 
-	// Protected routes group
+	// TOTP verification routes (for already authenticated users) - with stricter rate limiting
+	totpRateLimit := ratelimit.WithConfig(&ratelimit.Config{
+		Store:        rateLimitStore,
+		Rate:         3,
+		Period:       time.Minute,
+		CountMode:    config.CountFailures,
+		KeyGenerator: ratelimit.SecureKeyGenerator,
+	})
+
+	auth.GET("/totp/verify", totpHandler.ShowVerify)
+	auth.POST("/totp/verify", totpHandler.VerifyTOTP, totpRateLimit)
+
+	// Protected routes group (requires auth + TOTP if user has TOTP enabled)
 	protected := srv.Group("")
 	protected.Use(session.RequireAuthWeb("/auth/login"))
+	protected.Use(session.RequireTOTPWeb("/auth/totp/verify"))
 
-	// Protected application routes
+	// Application routes
 	protected.GET("/", dashboardHandler.Dashboard)
 	protected.GET("/profile", authHandler.Profile)
+
+	// TOTP management routes
+	protected.GET("/auth/totp/setup", totpHandler.ShowSetup)
+	protected.POST("/auth/totp/enable", totpHandler.EnableTOTP)
+	protected.POST("/auth/totp/disable", totpHandler.DisableTOTP)
+	protected.GET("/api/totp/status", totpHandler.GetTOTPStatus)
 
 	// Session management routes
 	if sessionHandler != nil {

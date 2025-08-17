@@ -1,14 +1,9 @@
 import { Link, usePage, router } from '@inertiajs/react';
 import { ReactNode } from 'react';
+import { User } from '../types';
 
 interface LayoutProps {
   children: ReactNode;
-}
-
-interface User {
-  id: number;
-  username: string;
-  email: string;
 }
 
 export default function Layout({ children }: LayoutProps) {

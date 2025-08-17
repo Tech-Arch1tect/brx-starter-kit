@@ -9,6 +9,7 @@ import (
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
 	"github.com/tech-arch1tect/brx/middleware/inertiashared"
+	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
@@ -23,7 +24,7 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}),
+		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),

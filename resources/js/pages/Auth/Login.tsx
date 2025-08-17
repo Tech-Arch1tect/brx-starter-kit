@@ -5,9 +5,10 @@ import FlashMessages from '../../components/FlashMessages';
 
 interface LoginProps {
   csrfToken?: string;
+  emailVerificationEnabled?: boolean;
 }
 
-export default function Login({ csrfToken }: LoginProps) {
+export default function Login({ csrfToken, emailVerificationEnabled }: LoginProps) {
   const { data, setData, post, processing, errors } = useForm({
     username: '',
     password: '',
@@ -96,6 +97,26 @@ export default function Login({ csrfToken }: LoginProps) {
                     Forgot your password?
                   </Link>
                 </div>
+
+                {emailVerificationEnabled && (
+                  <div className="text-center">
+                    <form method="POST" action="/auth/resend-verification" className="inline">
+                      <input type="hidden" name="_token" value={csrfToken} />
+                      <input
+                        type="email"
+                        name="email"
+                        placeholder="Enter email to resend verification"
+                        className="text-xs px-2 py-1 border rounded mr-2 w-48"
+                      />
+                      <button
+                        type="submit"
+                        className="text-xs font-medium text-blue-600 hover:text-blue-500 underline"
+                      >
+                        Resend verification
+                      </button>
+                    </form>
+                  </div>
+                )}
 
                 <div className="text-center">
                   <p className="text-sm text-gray-600">

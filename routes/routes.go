@@ -53,6 +53,11 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	auth.GET("/password-reset/confirm", authHandler.ShowPasswordResetConfirm)
 	auth.POST("/password-reset/confirm", authHandler.ConfirmPasswordReset)
 
+	// Email verification routes
+	auth.GET("/verify-email", authHandler.ShowVerifyEmail)
+	auth.POST("/verify-email", authHandler.VerifyEmail)
+	auth.POST("/resend-verification", authHandler.ResendVerification)
+
 	// TOTP verification routes (for already authenticated users) - with stricter rate limiting
 	totpRateLimit := ratelimit.WithConfig(&ratelimit.Config{
 		Store:        rateLimitStore,

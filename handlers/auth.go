@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -38,7 +39,8 @@ func (h *AuthHandler) ShowLogin(c echo.Context) error {
 	}
 
 	return h.inertiaSvc.Render(c, "Auth/Login", map[string]any{
-		"title": "Login",
+		"title":                    "Login",
+		"emailVerificationEnabled": h.authSvc.IsEmailVerificationRequired(),
 	})
 }
 
@@ -66,6 +68,13 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	if err := h.authSvc.VerifyPassword(user.Password, req.Password); err != nil {
 		session.AddFlashError(c, "Invalid credentials")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if h.authSvc.IsEmailVerificationRequired() && !h.authSvc.IsEmailVerified(user.Email) {
+
+		session.AddFlashError(c, "Please verify your email before signing in.")
+		session.AddFlashInfo(c, "You can resend the verification email using the form on this page.")
 		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
@@ -120,11 +129,35 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
-	session.LoginWithTOTPService(c, user.ID, h.totpSvc)
-	session.AddFlashSuccess(c, "Account created successfully!")
-	session.AddFlashInfo(c, "Please check your profile settings and enable two-factor authentication for better security.")
+	if h.authSvc.IsEmailVerificationRequired() {
 
-	return c.Redirect(http.StatusFound, "/")
+		if err := h.authSvc.RequestEmailVerification(req.Email); err != nil {
+			log.Printf("Failed to send email verification for %s: %v", req.Email, err)
+
+			var errorMsg string
+			if strings.Contains(err.Error(), "mail service is not configured") {
+				errorMsg = "Email service is not configured. Please contact support."
+			} else if strings.Contains(err.Error(), "failed to send email verification email") {
+				errorMsg = "Failed to send verification email. Mail service may be unavailable."
+			} else if strings.Contains(err.Error(), "database is required") {
+				errorMsg = "Database error occurred. Please contact support."
+			} else {
+				errorMsg = fmt.Sprintf("Email verification failed: %s", err.Error())
+			}
+
+			session.AddFlashError(c, fmt.Sprintf("Account created but %s", errorMsg))
+			return c.Redirect(http.StatusFound, "/auth/login")
+		}
+		session.AddFlashSuccess(c, "Account created successfully!")
+		session.AddFlashInfo(c, "Please check your email and click the verification link before signing in.")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	} else {
+
+		session.LoginWithTOTPService(c, user.ID, h.totpSvc)
+		session.AddFlashSuccess(c, "Account created successfully!")
+		session.AddFlashInfo(c, "Please check your profile settings and enable two-factor authentication for better security.")
+		return c.Redirect(http.StatusFound, "/")
+	}
 }
 
 func (h *AuthHandler) Logout(c echo.Context) error {
@@ -276,5 +309,116 @@ func (h *AuthHandler) ConfirmPasswordReset(c echo.Context) error {
 	}
 
 	session.AddFlashSuccess(c, "Your password has been reset successfully. Please log in with your new password.")
+	return c.Redirect(http.StatusFound, "/auth/login")
+}
+
+func (h *AuthHandler) ShowVerifyEmail(c echo.Context) error {
+	token := c.QueryParam("token")
+	if token == "" {
+		session.AddFlashError(c, "Invalid verification link")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	_, err := h.authSvc.ValidateEmailVerificationToken(token)
+	if err != nil {
+		var message string
+		switch err {
+		case auth.ErrEmailVerificationTokenExpired:
+			message = "This verification link has expired. Please request a new one."
+		case auth.ErrEmailVerificationTokenUsed:
+			message = "This email has already been verified."
+		case auth.ErrEmailVerificationTokenInvalid:
+			message = "Invalid verification link."
+		default:
+			message = "Invalid verification link."
+		}
+		session.AddFlashError(c, message)
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	return h.inertiaSvc.Render(c, "Auth/VerifyEmail", map[string]any{
+		"token": token,
+	})
+}
+
+func (h *AuthHandler) VerifyEmail(c echo.Context) error {
+	token := c.QueryParam("token")
+	if token == "" {
+		session.AddFlashError(c, "Invalid verification link")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if err := h.authSvc.VerifyEmail(token); err != nil {
+		var message string
+		switch err {
+		case auth.ErrEmailVerificationTokenExpired:
+			message = "This verification link has expired. Please request a new one."
+		case auth.ErrEmailVerificationTokenUsed:
+			message = "This email has already been verified."
+		case auth.ErrEmailVerificationTokenInvalid:
+			message = "Invalid verification link."
+		default:
+			message = "Something went wrong. Please try again."
+		}
+		session.AddFlashError(c, message)
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	session.AddFlashSuccess(c, "Your email has been verified successfully! You can now sign in.")
+	return c.Redirect(http.StatusFound, "/auth/login")
+}
+
+func (h *AuthHandler) ResendVerification(c echo.Context) error {
+	var req struct {
+		Email string `form:"email" json:"email"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		session.AddFlashError(c, "Invalid request")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if req.Email == "" {
+		session.AddFlashError(c, "Email is required")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	var user models.User
+	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			session.AddFlashInfo(c, "If an account with that email exists, a verification email will be sent.")
+			return c.Redirect(http.StatusFound, "/auth/login")
+		}
+		session.AddFlashError(c, "Something went wrong. Please try again.")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if !h.authSvc.IsEmailVerificationRequired() {
+		session.AddFlashError(c, "Email verification is currently disabled")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if user.EmailVerifiedAt != nil {
+		session.AddFlashInfo(c, "This email is already verified.")
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	if err := h.authSvc.RequestEmailVerification(req.Email); err != nil {
+		log.Printf("Failed to resend email verification for %s: %v", req.Email, err)
+
+		var errorMsg string
+		if strings.Contains(err.Error(), "mail service is not configured") {
+			errorMsg = "Email service is not configured. Please contact support."
+		} else if strings.Contains(err.Error(), "failed to send email verification email") {
+			errorMsg = "Failed to send verification email. Mail service may be unavailable."
+		} else {
+			errorMsg = fmt.Sprintf("Verification email failed: %s", err.Error())
+		}
+
+		session.AddFlashError(c, errorMsg)
+		return c.Redirect(http.StatusFound, "/auth/login")
+	}
+
+	session.AddFlashInfo(c, "If an account with that email exists, a verification email will be sent.")
 	return c.Redirect(http.StatusFound, "/auth/login")
 }

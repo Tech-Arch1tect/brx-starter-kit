@@ -1,0 +1,18 @@
+Welcome to {{.AppName}}!
+
+Please verify your email address
+
+Hello {{.Email}},
+
+Thank you for registering with {{.AppName}}! To complete your registration and start using your account, please verify your email address by clicking the link below:
+
+{{.VerificationURL}}
+
+This verification link will expire in {{.ExpiryDuration}}.
+
+If you didn't create an account with {{.AppName}}, please ignore this email.
+
+Best regards,
+The {{.AppName}} Team
+
+This is an automated email. Please do not reply to this message.

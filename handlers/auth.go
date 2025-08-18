@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,8 +10,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	"github.com/tech-arch1tect/brx/services/logging"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"brx-starter-kit/models"
@@ -69,14 +70,16 @@ type AuthHandler struct {
 	inertiaSvc *inertia.Service
 	authSvc    *auth.Service
 	totpSvc    *totp.Service
+	logger     *logging.Service
 }
 
-func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service, totpSvc *totp.Service) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service, totpSvc *totp.Service, logger *logging.Service) *AuthHandler {
 	return &AuthHandler{
 		db:         db,
 		inertiaSvc: inertiaSvc,
 		authSvc:    authSvc,
 		totpSvc:    totpSvc,
+		logger:     logger,
 	}
 }
 
@@ -97,7 +100,7 @@ func (h *AuthHandler) ShowLogin(c echo.Context) error {
 					if h.authSvc.ShouldRotateRememberMeToken() {
 						newToken, err := h.authSvc.RotateRememberMeToken(cookie.Value)
 						if err != nil {
-							log.Printf("Failed to rotate remember me token: %v", err)
+							h.logger.Error("failed to rotate remember me token", zap.Error(err))
 						} else {
 							h.setRememberMeCookie(c, newToken.Token, newToken.ExpiresAt)
 						}
@@ -139,13 +142,28 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
+	h.logger.Info("login attempt",
+		zap.String("username", req.Username),
+		zap.String("remote_ip", c.RealIP()),
+		zap.String("user_agent", c.Request().UserAgent()),
+	)
+
 	var user models.User
 	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+		h.logger.Warn("login failed - user not found",
+			zap.String("username", req.Username),
+			zap.String("remote_ip", c.RealIP()),
+		)
 		session.AddFlashError(c, "Invalid credentials")
 		return c.Redirect(http.StatusFound, "/auth/login")
 	}
 
 	if err := h.authSvc.VerifyPassword(user.Password, req.Password); err != nil {
+		h.logger.Warn("login failed - invalid password",
+			zap.String("username", req.Username),
+			zap.Uint("user_id", user.ID),
+			zap.String("remote_ip", c.RealIP()),
+		)
 		session.AddFlashError(c, "Invalid credentials")
 		return c.Redirect(http.StatusFound, "/auth/login")
 	}
@@ -162,11 +180,25 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if h.authSvc.IsRememberMeEnabled() && req.RememberMe {
 		rememberToken, err := h.authSvc.CreateRememberMeToken(user.ID)
 		if err != nil {
-			log.Printf("Failed to create remember me token for user %d: %v", user.ID, err)
+			h.logger.Error("failed to create remember me token",
+				zap.Uint("user_id", user.ID),
+				zap.Error(err),
+			)
 		} else {
 			h.setRememberMeCookie(c, rememberToken.Token, rememberToken.ExpiresAt)
+			h.logger.Info("remember me token created",
+				zap.Uint("user_id", user.ID),
+				zap.Time("expires_at", rememberToken.ExpiresAt),
+			)
 		}
 	}
+
+	h.logger.Info("login successful",
+		zap.String("username", req.Username),
+		zap.Uint("user_id", user.ID),
+		zap.String("remote_ip", c.RealIP()),
+		zap.Bool("remember_me", req.RememberMe),
+	)
 
 	session.AddFlashSuccess(c, "Login successful!")
 	session.AddFlashInfo(c, "Welcome back! Your last login was recorded.")
@@ -221,7 +253,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if h.authSvc.IsEmailVerificationRequired() {
 
 		if err := h.authSvc.RequestEmailVerification(req.Email); err != nil {
-			log.Printf("Failed to send email verification for %s: %v", req.Email, err)
+			h.logger.Error("failed to send email verification", zap.String("email", req.Email), zap.Error(err))
 
 			var errorMsg string
 			if strings.Contains(err.Error(), "mail service is not configured") {
@@ -254,7 +286,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	if h.authSvc.IsRememberMeEnabled() && userID != nil {
 		if userIDUint, ok := userID.(uint); ok && userIDUint > 0 {
 			if err := h.authSvc.InvalidateRememberMeTokens(userIDUint); err != nil {
-				log.Printf("Failed to invalidate remember me tokens for user %d: %v", userIDUint, err)
+				h.logger.Error("failed to invalidate remember me tokens", zap.Uint("user_id", userIDUint), zap.Error(err))
 			}
 		}
 
@@ -504,7 +536,7 @@ func (h *AuthHandler) ResendVerification(c echo.Context) error {
 	}
 
 	if err := h.authSvc.RequestEmailVerification(req.Email); err != nil {
-		log.Printf("Failed to resend email verification for %s: %v", req.Email, err)
+		h.logger.Error("failed to resend email verification", zap.String("email", req.Email), zap.Error(err))
 
 		var errorMsg string
 		if strings.Contains(err.Error(), "mail service is not configured") {

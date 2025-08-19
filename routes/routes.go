@@ -11,6 +11,7 @@ import (
 	"github.com/tech-arch1tect/brx/middleware/csrf"
 	"github.com/tech-arch1tect/brx/middleware/inertiacsrf"
 	"github.com/tech-arch1tect/brx/middleware/jwt"
+	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/middleware/ratelimit"
 	"github.com/tech-arch1tect/brx/server"
 	"github.com/tech-arch1tect/brx/services/inertia"
@@ -18,7 +19,7 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, userProvider jwtshared.UserProvider, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
 
@@ -125,6 +126,9 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		// Protected API routes
 		apiProtected := api.Group("")
 		apiProtected.Use(jwt.RequireJWT(jwtSvc))
+		apiProtected.Use(jwtshared.MiddlewareWithConfig(jwtshared.Config{
+			UserProvider: userProvider,
+		}))
 		apiProtected.GET("/profile", mobileAuthHandler.Profile)
 		apiProtected.POST("/auth/logout", mobileAuthHandler.Logout)
 	}

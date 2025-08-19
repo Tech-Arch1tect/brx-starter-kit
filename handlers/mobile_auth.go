@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/tech-arch1tect/brx/middleware/jwt"
+	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/services/auth"
 	jwtservice "github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/logging"
@@ -343,40 +342,32 @@ func (h *MobileAuthHandler) RefreshToken(c echo.Context) error {
 }
 
 func (h *MobileAuthHandler) Profile(c echo.Context) error {
-	userID := jwt.GetUserID(c)
-	if userID == 0 {
+	// Get user from context (populated by JWT shared middleware)
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
 		return c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Error:   "unauthorized",
 			Message: "Invalid or missing authentication token",
 		})
 	}
 
-	var user models.User
-	if err := h.db.First(&user, userID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "user_not_found",
-				Message: "User not found",
-			})
-		}
-		h.logger.Error("failed to fetch user profile",
-			zap.Uint("user_id", userID),
-			zap.Error(err),
-		)
+	// Cast to User model
+	userModel, ok := user.(models.User)
+	if !ok {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to fetch user profile",
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
 		})
 	}
 
 	return c.JSON(http.StatusOK, UserInfo{
-		ID:              user.ID,
-		Username:        user.Username,
-		Email:           user.Email,
-		EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
+		ID:              userModel.ID,
+		Username:        userModel.Username,
+		Email:           userModel.Email,
+		EmailVerifiedAt: formatTimePtr(userModel.EmailVerifiedAt),
 		TOTPEnabled:     false, // TODO: Check TOTP status
-		CreatedAt:       user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
+		CreatedAt:       userModel.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       userModel.UpdatedAt.Format(time.RFC3339),
 	})
 }
 

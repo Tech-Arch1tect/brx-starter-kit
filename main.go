@@ -9,6 +9,7 @@ import (
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
 	"github.com/tech-arch1tect/brx/middleware/inertiashared"
+	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/totp"
@@ -40,6 +41,10 @@ func main() {
 			fx.Provide(fx.Annotate(
 				providers.NewUserProvider,
 				fx.As(new(inertiashared.UserProvider)),
+			)),
+			fx.Provide(fx.Annotate(
+				providers.NewUserProvider,
+				fx.As(new(jwtshared.UserProvider)),
 			)),
 			fx.Invoke(routes.RegisterRoutes),
 		),

@@ -9,6 +9,7 @@ import (
 	"github.com/tech-arch1tect/brx/services/auth"
 	jwtservice "github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/logging"
+	"github.com/tech-arch1tect/brx/services/totp"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -19,14 +20,16 @@ type MobileAuthHandler struct {
 	db      *gorm.DB
 	authSvc *auth.Service
 	jwtSvc  *jwtservice.Service
+	totpSvc *totp.Service
 	logger  *logging.Service
 }
 
-func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, logger *logging.Service) *MobileAuthHandler {
+func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, totpSvc *totp.Service, logger *logging.Service) *MobileAuthHandler {
 	return &MobileAuthHandler{
 		db:      db,
 		authSvc: authSvc,
 		jwtSvc:  jwtSvc,
+		totpSvc: totpSvc,
 		logger:  logger,
 	}
 }
@@ -74,6 +77,34 @@ type RefreshResponse struct {
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
+}
+
+type TOTPRequiredResponse struct {
+	Message        string `json:"message"`
+	TOTPRequired   bool   `json:"totp_required"`
+	TemporaryToken string `json:"temporary_token"`
+}
+
+type TOTPVerifyRequest struct {
+	Code string `json:"code" validate:"required"`
+}
+
+type TOTPSetupResponse struct {
+	QRCodeURI string `json:"qr_code_uri"`
+	Secret    string `json:"secret"`
+}
+
+type TOTPStatusResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
+type TOTPEnableRequest struct {
+	Code string `json:"code" validate:"required"`
+}
+
+type TOTPDisableRequest struct {
+	Code     string `json:"code" validate:"required"`
+	Password string `json:"password" validate:"required"`
 }
 
 func (h *MobileAuthHandler) Login(c echo.Context) error {
@@ -132,6 +163,32 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 		})
 	}
 
+	if h.totpSvc.IsUserTOTPEnabled(user.ID) {
+		temporaryToken, err := h.jwtSvc.GenerateTOTPToken(user.ID)
+		if err != nil {
+			h.logger.Error("failed to generate TOTP token",
+				zap.Uint("user_id", user.ID),
+				zap.Error(err),
+			)
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "token_generation_failed",
+				Message: "Failed to generate authentication token",
+			})
+		}
+
+		h.logger.Info("mobile login - TOTP required",
+			zap.String("username", req.Username),
+			zap.Uint("user_id", user.ID),
+			zap.String("remote_ip", c.RealIP()),
+		)
+
+		return c.JSON(http.StatusOK, TOTPRequiredResponse{
+			Message:        "Two-factor authentication required",
+			TOTPRequired:   true,
+			TemporaryToken: temporaryToken,
+		})
+	}
+
 	accessToken, err := h.jwtSvc.GenerateToken(user.ID)
 	if err != nil {
 		h.logger.Error("failed to generate access token",
@@ -172,7 +229,7 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 			Username:        user.Username,
 			Email:           user.Email,
 			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
-			TOTPEnabled:     false, // TODO: Check TOTP status
+			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
 			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
 		},
@@ -288,7 +345,7 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 			Username:        user.Username,
 			Email:           user.Email,
 			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
-			TOTPEnabled:     false, // TODO: Check TOTP status
+			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
 			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
 		},
@@ -374,6 +431,314 @@ func (h *MobileAuthHandler) Profile(c echo.Context) error {
 func (h *MobileAuthHandler) Logout(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Logout successful. Please discard the token on client side.",
+	})
+}
+
+func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
+	var req TOTPVerifyRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
+
+	if req.Code == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "TOTP code is required",
+		})
+	}
+
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" || len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Missing or invalid authorization header",
+		})
+	}
+
+	tokenString := authHeader[7:]
+	claims, err := h.jwtSvc.ValidateToken(tokenString)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or expired token",
+		})
+	}
+
+	if claims.TokenType != "totp_pending" {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "invalid_token_type",
+			Message: "Invalid token for TOTP verification",
+		})
+	}
+
+	if err := h.totpSvc.VerifyUserCode(claims.UserID, req.Code); err != nil {
+		switch err {
+		case totp.ErrInvalidCode:
+			return c.JSON(http.StatusUnauthorized, ErrorResponse{
+				Error:   "invalid_totp_code",
+				Message: "Invalid TOTP code",
+			})
+		case totp.ErrCodeAlreadyUsed:
+			return c.JSON(http.StatusUnauthorized, ErrorResponse{
+				Error:   "code_already_used",
+				Message: "TOTP code has already been used",
+			})
+		}
+		h.logger.Error("TOTP verification failed",
+			zap.Uint("user_id", claims.UserID),
+			zap.Error(err),
+		)
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "totp_verification_failed",
+			Message: "Failed to verify TOTP code",
+		})
+	}
+
+	var user models.User
+	if err := h.db.First(&user, claims.UserID).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_not_found",
+			Message: "User not found",
+		})
+	}
+
+	accessToken, err := h.jwtSvc.GenerateToken(claims.UserID)
+	if err != nil {
+		h.logger.Error("failed to generate access token after TOTP verification",
+			zap.Uint("user_id", claims.UserID),
+			zap.Error(err),
+		)
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "token_generation_failed",
+			Message: "Failed to generate authentication token",
+		})
+	}
+
+	refreshToken, err := h.jwtSvc.GenerateRefreshToken(claims.UserID)
+	if err != nil {
+		h.logger.Error("failed to generate refresh token after TOTP verification",
+			zap.Uint("user_id", claims.UserID),
+			zap.Error(err),
+		)
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "token_generation_failed",
+			Message: "Failed to generate refresh token",
+		})
+	}
+
+	h.logger.Info("TOTP verification successful",
+		zap.Uint("user_id", claims.UserID),
+		zap.String("remote_ip", c.RealIP()),
+	)
+
+	return c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    h.jwtSvc.GetAccessExpirySeconds(),
+		User: UserInfo{
+			ID:              user.ID,
+			Username:        user.Username,
+			Email:           user.Email,
+			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
+			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
+			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
+		},
+	})
+}
+
+func (h *MobileAuthHandler) GetTOTPSetup(c echo.Context) error {
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	if h.totpSvc.IsUserTOTPEnabled(userModel.ID) {
+		return c.JSON(http.StatusConflict, ErrorResponse{
+			Error:   "totp_already_enabled",
+			Message: "TOTP is already enabled for your account",
+		})
+	}
+
+	existing, err := h.totpSvc.GetSecret(userModel.ID)
+	if err != nil && err != totp.ErrSecretNotFound {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "totp_setup_failed",
+			Message: "Failed to retrieve TOTP information",
+		})
+	}
+
+	var secret *totp.TOTPSecret
+	if existing != nil {
+		secret = existing
+	} else {
+		secret, err = h.totpSvc.GenerateSecret(userModel.ID, userModel.Email)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "totp_setup_failed",
+				Message: "Failed to generate TOTP secret",
+			})
+		}
+	}
+
+	qrCodeURI, err := h.totpSvc.GenerateProvisioningURI(secret, userModel.Email)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "totp_setup_failed",
+			Message: "Failed to generate QR code",
+		})
+	}
+
+	return c.JSON(http.StatusOK, TOTPSetupResponse{
+		QRCodeURI: qrCodeURI,
+		Secret:    secret.Secret,
+	})
+}
+
+func (h *MobileAuthHandler) EnableTOTP(c echo.Context) error {
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	var req TOTPEnableRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
+
+	if req.Code == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "TOTP code is required",
+		})
+	}
+
+	if err := h.totpSvc.EnableTOTP(userModel.ID, req.Code); err != nil {
+		if err == totp.ErrInvalidCode {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error:   "invalid_totp_code",
+				Message: "Invalid TOTP code. Please try again.",
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "totp_enable_failed",
+			Message: "Failed to enable TOTP",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Two-factor authentication has been enabled successfully",
+	})
+}
+
+func (h *MobileAuthHandler) DisableTOTP(c echo.Context) error {
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	var req TOTPDisableRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
+
+	if req.Code == "" || req.Password == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "TOTP code and password are required to disable 2FA",
+		})
+	}
+
+	if err := h.authSvc.VerifyPassword(userModel.Password, req.Password); err != nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "invalid_password",
+			Message: "Invalid password",
+		})
+	}
+
+	if err := h.totpSvc.VerifyUserCode(userModel.ID, req.Code); err != nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "invalid_totp_code",
+			Message: "Invalid TOTP code",
+		})
+	}
+
+	if err := h.totpSvc.DisableTOTP(userModel.ID); err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "totp_disable_failed",
+			Message: "Failed to disable TOTP",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Two-factor authentication has been disabled",
+	})
+}
+
+func (h *MobileAuthHandler) GetTOTPStatus(c echo.Context) error {
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	enabled := h.totpSvc.IsUserTOTPEnabled(userModel.ID)
+
+	return c.JSON(http.StatusOK, TOTPStatusResponse{
+		Enabled: enabled,
 	})
 }
 

@@ -122,6 +122,7 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		api.POST("/auth/login", mobileAuthHandler.Login)
 		api.POST("/auth/register", mobileAuthHandler.Register)
 		api.POST("/auth/refresh", mobileAuthHandler.RefreshToken)
+		api.POST("/auth/totp/verify", mobileAuthHandler.VerifyTOTP)
 
 		// Protected API routes
 		apiProtected := api.Group("")
@@ -131,5 +132,11 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		}))
 		apiProtected.GET("/profile", mobileAuthHandler.Profile)
 		apiProtected.POST("/auth/logout", mobileAuthHandler.Logout)
+
+		// TOTP management routes
+		apiProtected.GET("/totp/setup", mobileAuthHandler.GetTOTPSetup)
+		apiProtected.POST("/totp/enable", mobileAuthHandler.EnableTOTP)
+		apiProtected.POST("/totp/disable", mobileAuthHandler.DisableTOTP)
+		apiProtected.GET("/totp/status", mobileAuthHandler.GetTOTPStatus)
 	}
 }

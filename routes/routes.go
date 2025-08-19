@@ -10,13 +10,15 @@ import (
 	"github.com/tech-arch1tect/brx/config"
 	"github.com/tech-arch1tect/brx/middleware/csrf"
 	"github.com/tech-arch1tect/brx/middleware/inertiacsrf"
+	"github.com/tech-arch1tect/brx/middleware/jwt"
 	"github.com/tech-arch1tect/brx/middleware/ratelimit"
 	"github.com/tech-arch1tect/brx/server"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	jwtservice "github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
 
@@ -99,5 +101,31 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		protected.GET("/sessions", sessionHandler.Sessions)
 		protected.POST("/sessions/revoke", sessionHandler.RevokeSession)
 		protected.POST("/sessions/revoke-all-others", sessionHandler.RevokeAllOtherSessions)
+	}
+
+	// JWT authentication api routes - for non-web clients (flutter)
+	if mobileAuthHandler != nil && jwtSvc != nil {
+		api := srv.Group("/api/v1")
+
+		// API rate limiting
+		apiRateLimit := ratelimit.WithConfig(&ratelimit.Config{
+			Store:        rateLimitStore,
+			Rate:         50,
+			Period:       time.Minute * 3,
+			CountMode:    config.CountAll,
+			KeyGenerator: ratelimit.DefaultKeyGenerator,
+		})
+		api.Use(apiRateLimit)
+
+		// Public API routes
+		api.POST("/auth/login", mobileAuthHandler.Login)
+		api.POST("/auth/register", mobileAuthHandler.Register)
+		api.POST("/auth/refresh", mobileAuthHandler.RefreshToken)
+
+		// Protected API routes
+		apiProtected := api.Group("")
+		apiProtected.Use(jwt.RequireJWT(jwtSvc))
+		apiProtected.GET("/profile", mobileAuthHandler.Profile)
+		apiProtected.POST("/auth/logout", mobileAuthHandler.Logout)
 	}
 }

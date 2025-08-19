@@ -10,6 +10,7 @@ import (
 	"github.com/tech-arch1tect/brx/config"
 	"github.com/tech-arch1tect/brx/middleware/inertiashared"
 	"github.com/tech-arch1tect/brx/services/auth"
+	"github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
@@ -30,8 +31,10 @@ func main() {
 		brx.WithAuth(),
 		brx.WithTOTP(),
 		brx.WithFxOptions(
+			jwt.Options,
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),
+			fx.Provide(handlers.NewMobileAuthHandler),
 			fx.Provide(handlers.NewSessionHandler),
 			fx.Provide(handlers.NewTOTPHandler),
 			fx.Provide(fx.Annotate(

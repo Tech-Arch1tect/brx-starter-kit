@@ -8,6 +8,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/config"
+	"github.com/tech-arch1tect/brx/middleware/csrf"
+	"github.com/tech-arch1tect/brx/middleware/inertiacsrf"
 	"github.com/tech-arch1tect/brx/middleware/ratelimit"
 	"github.com/tech-arch1tect/brx/server"
 	"github.com/tech-arch1tect/brx/services/inertia"
@@ -29,8 +31,15 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	// Static file serving for Vite assets
 	srv.Get("/build/*", echo.WrapHandler(http.StripPrefix("/build/", http.FileServer(http.Dir("public/build")))))
 
+	// Web routes group (requires CSRF protection)
+	web := srv.Group("")
+	if cfg.CSRF.Enabled {
+		web.Use(csrf.WithConfig(&cfg.CSRF))
+		web.Use(inertiacsrf.Middleware(cfg))
+	}
+
 	// Authentication route group with rate limiting
-	auth := srv.Group("/auth")
+	auth := web.Group("/auth")
 	authRateLimit := ratelimit.WithConfig(&ratelimit.Config{
 		Store:        rateLimitStore,
 		Rate:         5,
@@ -71,7 +80,7 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 	auth.POST("/totp/verify", totpHandler.VerifyTOTP, totpRateLimit)
 
 	// Protected routes group (requires auth + TOTP if user has TOTP enabled)
-	protected := srv.Group("")
+	protected := web.Group("")
 	protected.Use(session.RequireAuthWeb("/auth/login"))
 	protected.Use(session.RequireTOTPWeb("/auth/totp/verify"))
 

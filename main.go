@@ -31,6 +31,7 @@ func main() {
 		brx.WithInertia(),
 		brx.WithAuth(),
 		brx.WithTOTP(),
+		brx.WithJWTRevocation(),
 		brx.WithFxOptions(
 			jwt.Options,
 			fx.Provide(handlers.NewDashboardHandler),

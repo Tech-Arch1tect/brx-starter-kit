@@ -94,6 +94,10 @@ type TOTPVerifyRequest struct {
 	Code string `json:"code" validate:"required"`
 }
 
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
 type TOTPSetupResponse struct {
 	QRCodeURI string `json:"qr_code_uri"`
 	Secret    string `json:"secret"`
@@ -443,19 +447,70 @@ func (h *MobileAuthHandler) Profile(c echo.Context) error {
 }
 
 func (h *MobileAuthHandler) Logout(c echo.Context) error {
+	var req LogoutRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Warn("logout - invalid request format",
+			zap.String("remote_ip", c.RealIP()),
+			zap.Error(err))
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
 
-	if h.sessionSvc != nil {
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+	if req.RefreshToken == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "Refresh token is required",
+		})
+	}
 
-			jwtToken := authHeader[7:]
-			sessionToken := h.generateSessionToken(jwtToken)
+	var revokedTokens []string
+
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		accessToken := authHeader[7:]
+
+		if err := h.jwtSvc.RevokeToken(accessToken); err != nil {
+			h.logger.Warn("failed to revoke access token during logout",
+				zap.Error(err))
+		} else {
+			revokedTokens = append(revokedTokens, "access_token")
+		}
+
+		if h.sessionSvc != nil {
+			sessionToken := h.generateSessionToken(accessToken)
 			_ = h.sessionSvc.RemoveSessionByToken(sessionToken)
 		}
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"message": "Logout successful. Please discard the token on client side.",
+	if err := h.jwtSvc.RevokeToken(req.RefreshToken); err != nil {
+		h.logger.Warn("failed to revoke refresh token during logout",
+			zap.Error(err))
+	} else {
+		revokedTokens = append(revokedTokens, "refresh_token")
+	}
+
+	if h.sessionSvc != nil {
+		refreshSessionToken := h.generateSessionToken(req.RefreshToken)
+		_ = h.sessionSvc.RemoveSessionByToken(refreshSessionToken)
+	}
+
+	if len(revokedTokens) == 0 {
+		h.logger.Error("failed to revoke any tokens during logout")
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "logout_failed",
+			Message: "Failed to revoke tokens",
+		})
+	}
+
+	h.logger.Info("logout successful",
+		zap.Strings("revoked_tokens", revokedTokens),
+		zap.String("remote_ip", c.RealIP()))
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"message":        "Logout successful. Tokens have been revoked.",
+		"revoked_tokens": revokedTokens,
 	})
 }
 

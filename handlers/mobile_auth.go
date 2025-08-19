@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	jwtservice "github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/logging"
 	"github.com/tech-arch1tect/brx/services/totp"
+	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -17,20 +20,22 @@ import (
 )
 
 type MobileAuthHandler struct {
-	db      *gorm.DB
-	authSvc *auth.Service
-	jwtSvc  *jwtservice.Service
-	totpSvc *totp.Service
-	logger  *logging.Service
+	db         *gorm.DB
+	authSvc    *auth.Service
+	jwtSvc     *jwtservice.Service
+	totpSvc    *totp.Service
+	sessionSvc session.SessionService
+	logger     *logging.Service
 }
 
-func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, totpSvc *totp.Service, logger *logging.Service) *MobileAuthHandler {
+func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, totpSvc *totp.Service, sessionSvc session.SessionService, logger *logging.Service) *MobileAuthHandler {
 	return &MobileAuthHandler{
-		db:      db,
-		authSvc: authSvc,
-		jwtSvc:  jwtSvc,
-		totpSvc: totpSvc,
-		logger:  logger,
+		db:         db,
+		authSvc:    authSvc,
+		jwtSvc:     jwtSvc,
+		totpSvc:    totpSvc,
+		sessionSvc: sessionSvc,
+		logger:     logger,
 	}
 }
 
@@ -213,6 +218,8 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 		})
 	}
 
+	h.trackJWTSession(c, user.ID, refreshToken)
+
 	h.logger.Info("mobile login successful",
 		zap.String("username", req.Username),
 		zap.Uint("user_id", user.ID),
@@ -329,6 +336,8 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 		})
 	}
 
+	h.trackJWTSession(c, user.ID, refreshToken)
+
 	h.logger.Info("mobile register successful",
 		zap.String("username", req.Username),
 		zap.Uint("user_id", user.ID),
@@ -390,6 +399,12 @@ func (h *MobileAuthHandler) RefreshToken(c echo.Context) error {
 		}
 	}
 
+	claims, err := h.jwtSvc.ValidateToken(req.RefreshToken)
+	if err == nil {
+
+		h.trackJWTSession(c, claims.UserID, newRefreshToken)
+	}
+
 	return c.JSON(http.StatusOK, RefreshResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
@@ -399,7 +414,7 @@ func (h *MobileAuthHandler) RefreshToken(c echo.Context) error {
 }
 
 func (h *MobileAuthHandler) Profile(c echo.Context) error {
-	// Get user from context (populated by JWT shared middleware)
+
 	user := jwtshared.GetCurrentUser(c)
 	if user == nil {
 		return c.JSON(http.StatusUnauthorized, ErrorResponse{
@@ -408,7 +423,6 @@ func (h *MobileAuthHandler) Profile(c echo.Context) error {
 		})
 	}
 
-	// Cast to User model
 	userModel, ok := user.(models.User)
 	if !ok {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -429,6 +443,17 @@ func (h *MobileAuthHandler) Profile(c echo.Context) error {
 }
 
 func (h *MobileAuthHandler) Logout(c echo.Context) error {
+
+	if h.sessionSvc != nil {
+		authHeader := c.Request().Header.Get("Authorization")
+		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+
+			jwtToken := authHeader[7:]
+			sessionToken := h.generateSessionToken(jwtToken)
+			_ = h.sessionSvc.RemoveSessionByToken(sessionToken)
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Logout successful. Please discard the token on client side.",
 	})
@@ -528,6 +553,8 @@ func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
 			Message: "Failed to generate refresh token",
 		})
 	}
+
+	h.trackJWTSession(c, claims.UserID, refreshToken)
 
 	h.logger.Info("TOTP verification successful",
 		zap.Uint("user_id", claims.UserID),
@@ -742,7 +769,177 @@ func (h *MobileAuthHandler) GetTOTPStatus(c echo.Context) error {
 	})
 }
 
-// Helper function to format time pointer for JSON
+func (h *MobileAuthHandler) GetSessions(c echo.Context) error {
+	if h.sessionSvc == nil {
+		return c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "sessions_unavailable",
+			Message: "Session service not available",
+		})
+	}
+
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	authHeader := c.Request().Header.Get("Authorization")
+	currentToken := ""
+	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		jwtToken := authHeader[7:]
+		currentToken = h.generateSessionToken(jwtToken)
+	}
+
+	sessions, err := h.sessionSvc.GetUserSessions(userModel.ID, currentToken)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "sessions_fetch_failed",
+			Message: "Failed to retrieve sessions",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"sessions": sessions,
+	})
+}
+
+func (h *MobileAuthHandler) RevokeSession(c echo.Context) error {
+	if h.sessionSvc == nil {
+		return c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "sessions_unavailable",
+			Message: "Session service not available",
+		})
+	}
+
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	var req struct {
+		SessionID uint `json:"session_id"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
+
+	if req.SessionID == 0 {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "Session ID is required",
+		})
+	}
+
+	err := h.sessionSvc.RevokeSession(userModel.ID, req.SessionID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "session_revoke_failed",
+			Message: "Failed to revoke session",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Session revoked successfully",
+	})
+}
+
+func (h *MobileAuthHandler) RevokeAllOtherSessions(c echo.Context) error {
+	if h.sessionSvc == nil {
+		return c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "sessions_unavailable",
+			Message: "Session service not available",
+		})
+	}
+
+	user := jwtshared.GetCurrentUser(c)
+	if user == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{
+			Error:   "unauthorized",
+			Message: "Invalid or missing authentication token",
+		})
+	}
+
+	userModel, ok := user.(models.User)
+	if !ok {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "user_data_error",
+			Message: "Failed to process user data",
+		})
+	}
+
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "missing_token",
+			Message: "Current session token not found",
+		})
+	}
+
+	jwtToken := authHeader[7:]
+	currentToken := h.generateSessionToken(jwtToken)
+
+	err := h.sessionSvc.RevokeAllOtherSessions(userModel.ID, currentToken)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "sessions_revoke_failed",
+			Message: "Failed to revoke other sessions",
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "All other sessions revoked successfully",
+	})
+}
+
+func (h *MobileAuthHandler) generateSessionToken(jwtToken string) string {
+	hash := sha256.Sum256([]byte(jwtToken))
+	return hex.EncodeToString(hash[:])
+}
+
+func (h *MobileAuthHandler) trackJWTSession(c echo.Context, userID uint, refreshToken string) {
+	if h.sessionSvc == nil {
+		return
+	}
+
+	sessionToken := h.generateSessionToken(refreshToken)
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+	expiresAt := time.Now().Add(time.Duration(h.jwtSvc.GetRefreshExpirySeconds()) * time.Second)
+
+	err := h.sessionSvc.TrackSession(userID, sessionToken, ipAddress, userAgent, expiresAt)
+	if err != nil {
+		h.logger.Warn("failed to track JWT session",
+			zap.Uint("user_id", userID),
+			zap.Error(err),
+		)
+	}
+}
+
 func formatTimePtr(t *time.Time) *string {
 	if t == nil {
 		return nil

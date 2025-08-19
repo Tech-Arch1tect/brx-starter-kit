@@ -138,5 +138,10 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		apiProtected.POST("/totp/enable", mobileAuthHandler.EnableTOTP)
 		apiProtected.POST("/totp/disable", mobileAuthHandler.DisableTOTP)
 		apiProtected.GET("/totp/status", mobileAuthHandler.GetTOTPStatus)
+
+		// Session management routes for JWT users
+		apiProtected.GET("/sessions", mobileAuthHandler.GetSessions)
+		apiProtected.POST("/sessions/revoke", mobileAuthHandler.RevokeSession)
+		apiProtected.POST("/sessions/revoke-all-others", mobileAuthHandler.RevokeAllOtherSessions)
 	}
 }

@@ -880,12 +880,25 @@ func (h *MobileAuthHandler) GetSessions(c echo.Context) error {
 		})
 	}
 
-	authHeader := c.Request().Header.Get("Authorization")
-	currentToken := ""
-	if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-		jwtToken := authHeader[7:]
-		currentToken = h.generateSessionToken(jwtToken)
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
 	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+	}
+
+	if req.RefreshToken == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "Refresh token is required",
+		})
+	}
+
+	currentToken := h.generateSessionToken(req.RefreshToken)
 
 	sessions, err := h.sessionSvc.GetUserSessions(userModel.ID, currentToken)
 	if err != nil {
@@ -979,16 +992,25 @@ func (h *MobileAuthHandler) RevokeAllOtherSessions(c echo.Context) error {
 		})
 	}
 
-	authHeader := c.Request().Header.Get("Authorization")
-	if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "missing_token",
-			Message: "Current session token not found",
+			Error:   "invalid_request",
+			Message: "Invalid request format",
 		})
 	}
 
-	jwtToken := authHeader[7:]
-	currentToken := h.generateSessionToken(jwtToken)
+	if req.RefreshToken == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "Refresh token is required",
+		})
+	}
+
+	currentToken := h.generateSessionToken(req.RefreshToken)
 
 	err := h.sessionSvc.RevokeAllOtherSessions(userModel.ID, currentToken)
 	if err != nil {

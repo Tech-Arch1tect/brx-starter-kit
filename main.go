@@ -12,6 +12,7 @@ import (
 	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/jwt"
+	"github.com/tech-arch1tect/brx/services/revocation"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
@@ -26,7 +27,7 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}),
+		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),

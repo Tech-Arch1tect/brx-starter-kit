@@ -51,6 +51,7 @@ func (h *SessionHandler) Sessions(c echo.Context) error {
 		sessionData[i] = map[string]any{
 			"id":          sess.ID,
 			"current":     sess.Current,
+			"type":        sess.Type,
 			"ip_address":  sess.IPAddress,
 			"location":    session.GetLocationInfo(sess.IPAddress),
 			"browser":     deviceInfo["browser"],

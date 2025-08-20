@@ -908,8 +908,35 @@ func (h *MobileAuthHandler) GetSessions(c echo.Context) error {
 		})
 	}
 
+	sessionData := make([]map[string]any, len(sessions))
+	for i, sess := range sessions {
+		deviceInfo := session.GetDeviceInfo(sess.UserAgent)
+
+		sessionData[i] = map[string]any{
+			"id":          sess.ID,
+			"user_id":     sess.UserID,
+			"token":       sess.Token,
+			"type":        string(sess.Type),
+			"current":     sess.Current,
+			"ip_address":  sess.IPAddress,
+			"user_agent":  sess.UserAgent,
+			"location":    session.GetLocationInfo(sess.IPAddress),
+			"browser":     deviceInfo["browser"],
+			"os":          deviceInfo["os"],
+			"device_type": deviceInfo["device_type"],
+			"device":      deviceInfo["device"],
+			"mobile":      deviceInfo["mobile"],
+			"tablet":      deviceInfo["tablet"],
+			"desktop":     deviceInfo["desktop"],
+			"bot":         deviceInfo["bot"],
+			"created_at":  sess.CreatedAt,
+			"last_used":   sess.LastUsed,
+			"expires_at":  sess.ExpiresAt,
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]any{
-		"sessions": sessions,
+		"sessions": sessionData,
 	})
 }
 

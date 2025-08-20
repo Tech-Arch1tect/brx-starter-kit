@@ -18,6 +18,7 @@ import {
 interface Session {
   id: number;
   current: boolean;
+  type: string;
   ip_address: string;
   location: string;
   browser: string;
@@ -151,6 +152,9 @@ export default function SessionsIndex({ sessions }: SessionsProps) {
                           >
                             {session.device_type}
                           </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300">
+                            {session.type.toUpperCase()}
+                          </span>
                           {session.current && (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400">
                               Current Session
@@ -177,6 +181,10 @@ export default function SessionsIndex({ sessions }: SessionsProps) {
                           <p>
                             <span className="font-medium">Created:</span>{' '}
                             {formatDate(session.created_at)}
+                          </p>
+                          <p>
+                            <span className="font-medium">Expires:</span>{' '}
+                            {formatDate(session.expires_at)}
                           </p>
                         </div>
                       </div>

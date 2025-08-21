@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/tech-arch1tect/brx/services/auth"
 	jwtservice "github.com/tech-arch1tect/brx/services/jwt"
 	"github.com/tech-arch1tect/brx/services/logging"
+	"github.com/tech-arch1tect/brx/services/refreshtoken"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/zap"
@@ -20,22 +22,24 @@ import (
 )
 
 type MobileAuthHandler struct {
-	db         *gorm.DB
-	authSvc    *auth.Service
-	jwtSvc     *jwtservice.Service
-	totpSvc    *totp.Service
-	sessionSvc session.SessionService
-	logger     *logging.Service
+	db              *gorm.DB
+	authSvc         *auth.Service
+	jwtSvc          *jwtservice.Service
+	refreshTokenSvc refreshtoken.RefreshTokenService
+	totpSvc         *totp.Service
+	sessionSvc      session.SessionService
+	logger          *logging.Service
 }
 
-func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, totpSvc *totp.Service, sessionSvc session.SessionService, logger *logging.Service) *MobileAuthHandler {
+func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, refreshTokenSvc refreshtoken.RefreshTokenService, totpSvc *totp.Service, sessionSvc session.SessionService, logger *logging.Service) *MobileAuthHandler {
 	return &MobileAuthHandler{
-		db:         db,
-		authSvc:    authSvc,
-		jwtSvc:     jwtSvc,
-		totpSvc:    totpSvc,
-		sessionSvc: sessionSvc,
-		logger:     logger,
+		db:              db,
+		authSvc:         authSvc,
+		jwtSvc:          jwtSvc,
+		refreshTokenSvc: refreshTokenSvc,
+		totpSvc:         totpSvc,
+		sessionSvc:      sessionSvc,
+		logger:          logger,
 	}
 }
 
@@ -45,11 +49,12 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	AccessToken  string   `json:"access_token"`
-	RefreshToken string   `json:"refresh_token"`
-	TokenType    string   `json:"token_type"`
-	ExpiresIn    int      `json:"expires_in"`
-	User         UserInfo `json:"user"`
+	AccessToken      string   `json:"access_token"`
+	RefreshToken     string   `json:"refresh_token"`
+	TokenType        string   `json:"token_type"`
+	ExpiresIn        int      `json:"expires_in"`
+	RefreshExpiresIn int      `json:"refresh_expires_in"`
+	User             UserInfo `json:"user"`
 }
 
 type RegisterRequest struct {
@@ -73,10 +78,11 @@ type RefreshRequest struct {
 }
 
 type RefreshResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	TokenType        string `json:"token_type"`
+	ExpiresIn        int    `json:"expires_in"`
+	RefreshExpiresIn int    `json:"refresh_expires_in"`
 }
 
 type ErrorResponse struct {
@@ -210,7 +216,13 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 		})
 	}
 
-	refreshToken, err := h.jwtSvc.GenerateRefreshToken(user.ID)
+	sessionInfo := refreshtoken.TokenSessionInfo{
+		IPAddress:  c.RealIP(),
+		UserAgent:  c.Request().UserAgent(),
+		DeviceInfo: session.GetDeviceInfo(c.Request().UserAgent()),
+	}
+
+	refreshTokenData, err := h.refreshTokenSvc.GenerateRefreshToken(user.ID, sessionInfo)
 	if err != nil {
 		h.logger.Error("failed to generate refresh token",
 			zap.Uint("user_id", user.ID),
@@ -222,7 +234,7 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 		})
 	}
 
-	h.trackJWTSession(c, user.ID, accessToken, refreshToken)
+	h.trackJWTSession(c, user.ID, accessToken, refreshTokenData)
 
 	h.logger.Info("mobile login successful",
 		zap.String("username", req.Username),
@@ -231,10 +243,11 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 	)
 
 	return c.JSON(http.StatusOK, LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    h.jwtSvc.GetAccessExpirySeconds(),
+		AccessToken:      accessToken,
+		RefreshToken:     refreshTokenData.Token,
+		TokenType:        "Bearer",
+		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
+		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
 		User: UserInfo{
 			ID:              user.ID,
 			Username:        user.Username,
@@ -329,7 +342,13 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 		})
 	}
 
-	refreshToken, err := h.jwtSvc.GenerateRefreshToken(user.ID)
+	sessionInfo := refreshtoken.TokenSessionInfo{
+		IPAddress:  c.RealIP(),
+		UserAgent:  c.Request().UserAgent(),
+		DeviceInfo: session.GetDeviceInfo(c.Request().UserAgent()),
+	}
+
+	refreshTokenData, err := h.refreshTokenSvc.GenerateRefreshToken(user.ID, sessionInfo)
 	if err != nil {
 		h.logger.Error("failed to generate refresh token for new user",
 			zap.Uint("user_id", user.ID),
@@ -340,7 +359,7 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 		})
 	}
 
-	h.trackJWTSession(c, user.ID, accessToken, refreshToken)
+	h.trackJWTSession(c, user.ID, accessToken, refreshTokenData)
 
 	h.logger.Info("mobile register successful",
 		zap.String("username", req.Username),
@@ -349,10 +368,11 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 	)
 
 	return c.JSON(http.StatusCreated, LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    h.jwtSvc.GetAccessExpirySeconds(),
+		AccessToken:      accessToken,
+		RefreshToken:     refreshTokenData.Token,
+		TokenType:        "Bearer",
+		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
+		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
 		User: UserInfo{
 			ID:              user.ID,
 			Username:        user.Username,
@@ -381,104 +401,47 @@ func (h *MobileAuthHandler) RefreshToken(c echo.Context) error {
 		})
 	}
 
-	claims, err := h.jwtSvc.ValidateToken(req.RefreshToken)
+	result, err := h.refreshTokenSvc.ValidateAndRotateRefreshToken(req.RefreshToken, h.jwtSvc)
 	if err != nil {
 		switch err {
-		case jwtservice.ErrExpiredToken:
+		case refreshtoken.ErrRefreshTokenExpired:
 			return c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "expired_token",
 				Message: "Refresh token has expired",
 			})
-		case jwtservice.ErrInvalidToken, jwtservice.ErrMalformedToken, jwtservice.ErrInvalidSignature:
+		case refreshtoken.ErrRefreshTokenNotFound, refreshtoken.ErrRefreshTokenInvalid:
 			return c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "invalid_token",
 				Message: "Invalid refresh token",
 			})
 		default:
-			h.logger.Error("failed to validate refresh token", zap.Error(err))
+			h.logger.Error("failed to refresh token", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "token_validation_failed",
-				Message: "Failed to validate refresh token",
+				Error:   "token_refresh_failed",
+				Message: "Failed to refresh token",
 			})
 		}
 	}
 
-	oldRefreshJTI, err := h.jwtSvc.ExtractJTI(req.RefreshToken)
-	if err != nil {
-		h.logger.Error("failed to extract JTI from refresh token", zap.Error(err))
-		return c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_token",
-			Message: "Invalid refresh token format",
-		})
-	}
-
-	var oldAccessJTI string
+	// Update the session with new tokens
 	if h.sessionSvc != nil {
-		if session, err := h.sessionSvc.GetJWTSessionByRefreshJTI(oldRefreshJTI); err == nil {
-			oldAccessJTI = session.AccessTokenJTI
-		}
-	}
-
-	newAccessToken, newRefreshToken, err := h.jwtSvc.RefreshToken(req.RefreshToken)
-	if err != nil {
-		h.logger.Error("failed to refresh token", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "token_refresh_failed",
-			Message: "Failed to refresh token",
-		})
-	}
-
-	newAccessJTI, err := h.jwtSvc.ExtractJTI(newAccessToken)
-	if err != nil {
-		h.logger.Error("failed to extract JTI from new access token", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "token_generation_failed",
-			Message: "Failed to process new tokens",
-		})
-	}
-
-	newRefreshJTI, err := h.jwtSvc.ExtractJTI(newRefreshToken)
-	if err != nil {
-		h.logger.Error("failed to extract JTI from new refresh token", zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "token_generation_failed",
-			Message: "Failed to process new tokens",
-		})
-	}
-
-	oldRefreshExpiry := time.Now().Add(time.Duration(h.jwtSvc.GetRefreshExpirySeconds()) * time.Second)
-	if err := h.jwtSvc.RevokeToken(oldRefreshJTI, oldRefreshExpiry); err != nil {
-		h.logger.Warn("failed to revoke old refresh token by JTI during refresh",
-			zap.String("jti", oldRefreshJTI),
-			zap.Error(err))
-	}
-
-	if oldAccessJTI != "" {
-		oldAccessExpiry := time.Now().Add(time.Duration(h.jwtSvc.GetAccessExpirySeconds()) * time.Second)
-		if err := h.jwtSvc.RevokeToken(oldAccessJTI, oldAccessExpiry); err != nil {
-			h.logger.Warn("failed to revoke old access token by JTI during refresh",
-				zap.String("jti", oldAccessJTI),
-				zap.Error(err))
-		}
-	}
-
-	if h.sessionSvc != nil {
-		expiresAt := time.Now().Add(time.Duration(h.jwtSvc.GetRefreshExpirySeconds()) * time.Second)
-		err := h.sessionSvc.UpdateJWTSession(oldRefreshJTI, newAccessJTI, newRefreshJTI, expiresAt)
+		accessJTI, _ := h.jwtSvc.ExtractJTI(result.AccessToken)
+		err = h.sessionSvc.UpdateJWTSessionWithRefreshToken(result.OldTokenID, accessJTI, result.RefreshTokenID, result.ExpiresAt)
 		if err != nil {
-			h.logger.Warn("failed to update JWT session by JTI during refresh",
-				zap.Uint("user_id", claims.UserID),
-				zap.String("old_refresh_jti", oldRefreshJTI),
-				zap.String("new_refresh_jti", newRefreshJTI),
-				zap.Error(err))
+			h.logger.Warn("failed to update JWT session after token refresh",
+				zap.Uint("old_refresh_token_id", result.OldTokenID),
+				zap.Uint("new_refresh_token_id", result.RefreshTokenID),
+				zap.Error(err),
+			)
 		}
 	}
 
 	return c.JSON(http.StatusOK, RefreshResponse{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    h.jwtSvc.GetAccessExpirySeconds(),
+		AccessToken:      result.AccessToken,
+		RefreshToken:     result.RefreshToken,
+		TokenType:        "Bearer",
+		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
+		RefreshExpiresIn: int(result.ExpiresAt.Sub(time.Now()).Seconds()),
 	})
 }
 
@@ -556,23 +519,11 @@ func (h *MobileAuthHandler) Logout(c echo.Context) error {
 		}
 	}
 
-	refreshJTI, err := h.jwtSvc.ExtractJTI(req.RefreshToken)
-	if err != nil {
-		h.logger.Warn("failed to extract JTI from refresh token during logout",
+	if err := h.refreshTokenSvc.RevokeRefreshToken(req.RefreshToken); err != nil {
+		h.logger.Warn("failed to revoke refresh token during logout",
 			zap.Error(err))
 	} else {
-		if err := h.jwtSvc.RevokeToken(refreshJTI, time.Now().Add(24*time.Hour)); err != nil {
-			h.logger.Warn("failed to revoke refresh token JTI during logout",
-				zap.String("jti", refreshJTI),
-				zap.Error(err))
-		} else {
-			revokedTokens = append(revokedTokens, "refresh_token")
-		}
-	}
-
-	if h.sessionSvc != nil {
-		refreshSessionToken := h.generateSessionToken(req.RefreshToken)
-		_ = h.sessionSvc.RemoveSessionByToken(refreshSessionToken)
+		revokedTokens = append(revokedTokens, "refresh_token")
 	}
 
 	if len(revokedTokens) == 0 {
@@ -676,7 +627,13 @@ func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
 		})
 	}
 
-	refreshToken, err := h.jwtSvc.GenerateRefreshToken(claims.UserID)
+	sessionInfo := refreshtoken.TokenSessionInfo{
+		IPAddress:  c.RealIP(),
+		UserAgent:  c.Request().UserAgent(),
+		DeviceInfo: session.GetDeviceInfo(c.Request().UserAgent()),
+	}
+
+	refreshTokenData, err := h.refreshTokenSvc.GenerateRefreshToken(claims.UserID, sessionInfo)
 	if err != nil {
 		h.logger.Error("failed to generate refresh token after TOTP verification",
 			zap.Uint("user_id", claims.UserID),
@@ -688,7 +645,7 @@ func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
 		})
 	}
 
-	h.trackJWTSession(c, claims.UserID, accessToken, refreshToken)
+	h.trackJWTSession(c, claims.UserID, accessToken, refreshTokenData)
 
 	h.logger.Info("TOTP verification successful",
 		zap.Uint("user_id", claims.UserID),
@@ -696,10 +653,11 @@ func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
 	)
 
 	return c.JSON(http.StatusOK, LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    h.jwtSvc.GetAccessExpirySeconds(),
+		AccessToken:      accessToken,
+		RefreshToken:     refreshTokenData.Token,
+		TokenType:        "Bearer",
+		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
+		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
 		User: UserInfo{
 			ID:              user.ID,
 			Username:        user.Username,
@@ -945,14 +903,14 @@ func (h *MobileAuthHandler) GetSessions(c echo.Context) error {
 		})
 	}
 
-	refreshJTI, err := h.jwtSvc.ExtractJTI(req.RefreshToken)
+	refreshToken, err := h.refreshTokenSvc.ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "invalid_token",
 			Message: "Invalid refresh token",
 		})
 	}
-	currentToken := h.generateSessionToken(refreshJTI)
+	currentToken := h.generateSessionTokenFromID(refreshToken.ID)
 
 	sessions, err := h.sessionSvc.GetUserSessions(userModel.ID, currentToken)
 	if err != nil {
@@ -1091,14 +1049,14 @@ func (h *MobileAuthHandler) RevokeAllOtherSessions(c echo.Context) error {
 		})
 	}
 
-	refreshJTI, err := h.jwtSvc.ExtractJTI(req.RefreshToken)
+	refreshToken, err := h.refreshTokenSvc.ValidateRefreshToken(req.RefreshToken)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "invalid_token",
 			Message: "Invalid refresh token",
 		})
 	}
-	currentToken := h.generateSessionToken(refreshJTI)
+	currentToken := h.generateSessionTokenFromID(refreshToken.ID)
 
 	err = h.sessionSvc.RevokeAllOtherSessions(userModel.ID, currentToken)
 	if err != nil {
@@ -1118,18 +1076,21 @@ func (h *MobileAuthHandler) generateSessionToken(jwtToken string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (h *MobileAuthHandler) trackJWTSession(c echo.Context, userID uint, accessToken, refreshToken string) {
+func (h *MobileAuthHandler) generateSessionTokenFromID(refreshTokenID uint) string {
+	hash := sha256.Sum256(fmt.Appendf(nil, "refresh_token_id_%d", refreshTokenID))
+	return hex.EncodeToString(hash[:])
+}
+
+func (h *MobileAuthHandler) trackJWTSession(c echo.Context, userID uint, accessToken string, refreshTokenData *refreshtoken.RefreshTokenData) {
 	if h.sessionSvc == nil {
 		return
 	}
 
 	ipAddress := c.RealIP()
 	userAgent := c.Request().UserAgent()
-	expiresAt := time.Now().Add(time.Duration(h.jwtSvc.GetRefreshExpirySeconds()) * time.Second)
 
 	accessJTI, _ := h.jwtSvc.ExtractJTI(accessToken)
-	refreshJTI, _ := h.jwtSvc.ExtractJTI(refreshToken)
-	err := h.sessionSvc.TrackJWTSessionWithJTI(userID, accessJTI, refreshJTI, ipAddress, userAgent, expiresAt)
+	err := h.sessionSvc.TrackJWTSessionWithRefreshToken(userID, accessJTI, refreshTokenData.TokenID, ipAddress, userAgent, refreshTokenData.ExpiresAt)
 	if err != nil {
 		h.logger.Warn("failed to track JWT session",
 			zap.Uint("user_id", userID),

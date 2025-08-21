@@ -12,6 +12,7 @@ import (
 	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/jwt"
+	"github.com/tech-arch1tect/brx/services/refreshtoken"
 	"github.com/tech-arch1tect/brx/services/revocation"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
@@ -27,11 +28,12 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}),
+		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}, &refreshtoken.RefreshToken{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),
 		brx.WithTOTP(),
+		brx.WithJWT(),
 		brx.WithJWTRevocation(),
 		brx.WithFxOptions(
 			jwt.Options,

@@ -514,8 +514,11 @@ func (h *MobileAuthHandler) Logout(c echo.Context) error {
 		}
 
 		if h.sessionSvc != nil {
-			sessionToken := h.generateSessionToken(accessToken)
-			_ = h.sessionSvc.RemoveSessionByToken(sessionToken)
+			refreshToken, err := h.refreshTokenSvc.ValidateRefreshToken(req.RefreshToken)
+			if err == nil {
+				sessionToken := h.generateSessionTokenFromID(refreshToken.ID)
+				_ = h.sessionSvc.RemoveSessionByToken(sessionToken)
+			}
 		}
 	}
 
@@ -1069,11 +1072,6 @@ func (h *MobileAuthHandler) RevokeAllOtherSessions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "All other sessions revoked successfully",
 	})
-}
-
-func (h *MobileAuthHandler) generateSessionToken(jwtToken string) string {
-	hash := sha256.Sum256([]byte(jwtToken))
-	return hex.EncodeToString(hash[:])
 }
 
 func (h *MobileAuthHandler) generateSessionTokenFromID(refreshTokenID uint) string {

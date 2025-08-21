@@ -14,7 +14,6 @@ export default function Profile({ title, csrfToken }: ProfileProps) {
   const user = props.currentUser as User;
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
   const [showDisableForm, setShowDisableForm] = useState(false);
-  const { post, processing } = useForm();
   const {
     data: disableData,
     setData: setDisableData,

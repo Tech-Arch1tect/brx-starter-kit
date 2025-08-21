@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
 import Layout from '../../components/Layout';
 import FlashMessages from '../../components/FlashMessages';

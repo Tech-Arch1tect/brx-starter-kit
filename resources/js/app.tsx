@@ -2,7 +2,7 @@ import './bootstrap';
 import '../css/app.css';
 
 import { createRoot } from 'react-dom/client';
-import { createInertiaApp, router } from '@inertiajs/react';
+import { createInertiaApp } from '@inertiajs/react';
 
 const appName = 'brx Starter Kit';
 
@@ -11,7 +11,7 @@ createInertiaApp({
   resolve: (name) => {
     const pages = import.meta.glob('./pages/**/*.tsx', { eager: true }) as Record<
       string,
-      { default: React.ComponentType<any> }
+      { default: React.ComponentType<unknown> }
     >;
     const page = pages[`./pages/${name}.tsx`];
     if (!page) {

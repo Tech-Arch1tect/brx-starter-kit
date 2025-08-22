@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"brx-starter-kit/internal/dto"
 	"brx-starter-kit/models"
 	"net/http"
 	"strconv"
@@ -30,8 +31,13 @@ func (h *APIHandler) ListUsers(c echo.Context) error {
 		})
 	}
 
+	userInfos := make([]dto.UserInfo, len(users))
+	for i, user := range users {
+		userInfos[i] = dto.ConvertUserToUserInfo(user)
+	}
+
 	return c.JSON(http.StatusOK, map[string]any{
-		"users": users,
+		"users": userInfos,
 	})
 }
 

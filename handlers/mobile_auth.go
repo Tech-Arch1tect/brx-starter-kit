@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"brx-starter-kit/internal/dto"
 	"brx-starter-kit/internal/rbac"
 	"brx-starter-kit/models"
 
@@ -52,28 +53,18 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	AccessToken      string   `json:"access_token"`
-	RefreshToken     string   `json:"refresh_token"`
-	TokenType        string   `json:"token_type"`
-	ExpiresIn        int      `json:"expires_in"`
-	RefreshExpiresIn int      `json:"refresh_expires_in"`
-	User             UserInfo `json:"user"`
+	AccessToken      string       `json:"access_token"`
+	RefreshToken     string       `json:"refresh_token"`
+	TokenType        string       `json:"token_type"`
+	ExpiresIn        int          `json:"expires_in"`
+	RefreshExpiresIn int          `json:"refresh_expires_in"`
+	User             dto.UserInfo `json:"user"`
 }
 
 type RegisterRequest struct {
 	Username string `json:"username" validate:"required"`
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
-}
-
-type UserInfo struct {
-	ID              uint    `json:"id"`
-	Username        string  `json:"username"`
-	Email           string  `json:"email"`
-	EmailVerifiedAt *string `json:"email_verified_at"`
-	TOTPEnabled     bool    `json:"totp_enabled"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
 }
 
 type RefreshRequest struct {
@@ -151,7 +142,7 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 	)
 
 	var user models.User
-	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+	if err := h.db.Preload("Roles").Where("username = ?", req.Username).First(&user).Error; err != nil {
 		h.logger.Warn("mobile login failed - user not found",
 			zap.String("username", req.Username),
 			zap.String("remote_ip", c.RealIP()),
@@ -245,21 +236,16 @@ func (h *MobileAuthHandler) Login(c echo.Context) error {
 		zap.String("remote_ip", c.RealIP()),
 	)
 
+	userInfo := dto.ConvertUserToUserInfo(user)
+	userInfo.TOTPEnabled = h.totpSvc.IsUserTOTPEnabled(user.ID)
+
 	return c.JSON(http.StatusOK, LoginResponse{
 		AccessToken:      accessToken,
 		RefreshToken:     refreshTokenData.Token,
 		TokenType:        "Bearer",
 		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
 		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
-		User: UserInfo{
-			ID:              user.ID,
-			Username:        user.Username,
-			Email:           user.Email,
-			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
-			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
-			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
-		},
+		User:             userInfo,
 	})
 }
 
@@ -382,15 +368,11 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 		TokenType:        "Bearer",
 		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
 		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
-		User: UserInfo{
-			ID:              user.ID,
-			Username:        user.Username,
-			Email:           user.Email,
-			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
-			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
-			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
-		},
+		User: func() dto.UserInfo {
+			userInfo := dto.ConvertUserToUserInfo(user)
+			userInfo.TOTPEnabled = h.totpSvc.IsUserTOTPEnabled(user.ID)
+			return userInfo
+		}(),
 	})
 }
 
@@ -472,15 +454,18 @@ func (h *MobileAuthHandler) Profile(c echo.Context) error {
 		})
 	}
 
-	return c.JSON(http.StatusOK, UserInfo{
-		ID:              userModel.ID,
-		Username:        userModel.Username,
-		Email:           userModel.Email,
-		EmailVerifiedAt: formatTimePtr(userModel.EmailVerifiedAt),
-		TOTPEnabled:     false, // TODO: Check TOTP status
-		CreatedAt:       userModel.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:       userModel.UpdatedAt.Format(time.RFC3339),
-	})
+	var fullUser models.User
+	if err := h.db.Preload("Roles").Where("id = ?", userModel.ID).First(&fullUser).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to load user profile",
+		})
+	}
+
+	userInfo := dto.ConvertUserToUserInfo(fullUser)
+	userInfo.TOTPEnabled = h.totpSvc.IsUserTOTPEnabled(fullUser.ID)
+
+	return c.JSON(http.StatusOK, userInfo)
 }
 
 func (h *MobileAuthHandler) Logout(c echo.Context) error {
@@ -670,15 +655,11 @@ func (h *MobileAuthHandler) VerifyTOTP(c echo.Context) error {
 		TokenType:        "Bearer",
 		ExpiresIn:        h.jwtSvc.GetAccessExpirySeconds(),
 		RefreshExpiresIn: int(refreshTokenData.ExpiresAt.Sub(time.Now()).Seconds()),
-		User: UserInfo{
-			ID:              user.ID,
-			Username:        user.Username,
-			Email:           user.Email,
-			EmailVerifiedAt: formatTimePtr(user.EmailVerifiedAt),
-			TOTPEnabled:     h.totpSvc.IsUserTOTPEnabled(user.ID),
-			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
-		},
+		User: func() dto.UserInfo {
+			userInfo := dto.ConvertUserToUserInfo(user)
+			userInfo.TOTPEnabled = h.totpSvc.IsUserTOTPEnabled(user.ID)
+			return userInfo
+		}(),
 	})
 }
 
@@ -1104,12 +1085,4 @@ func (h *MobileAuthHandler) trackJWTSession(c echo.Context, userID uint, accessT
 			zap.Error(err),
 		)
 	}
-}
-
-func formatTimePtr(t *time.Time) *string {
-	if t == nil {
-		return nil
-	}
-	formatted := t.Format(time.RFC3339)
-	return &formatted
 }

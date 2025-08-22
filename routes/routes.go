@@ -6,6 +6,7 @@ import (
 
 	"brx-starter-kit/handlers"
 	"brx-starter-kit/internal/rbac"
+	"brx-starter-kit/internal/setup"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/config"
@@ -20,7 +21,7 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, rbacHandler *rbac.Handler, rbacAPIHandler *rbac.APIHandler, rbacMiddleware *rbac.Middleware, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, userProvider jwtshared.UserProvider, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, rbacHandler *rbac.Handler, rbacAPIHandler *rbac.APIHandler, rbacMiddleware *rbac.Middleware, setupHandler *setup.Handler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, userProvider jwtshared.UserProvider, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
 
@@ -34,6 +35,12 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 
 	// Static file serving for Vite assets
 	srv.Get("/build/*", echo.WrapHandler(http.StripPrefix("/build/", http.FileServer(http.Dir("public/build")))))
+
+	// Setup routes (no authentication required)
+	if setupHandler != nil {
+		srv.Get("/setup/admin", setupHandler.ShowSetup)
+		srv.Post("/setup/admin", setupHandler.CreateAdmin)
+	}
 
 	// Web routes group (requires CSRF protection)
 	web := srv.Group("")

@@ -3,6 +3,7 @@ package main
 import (
 	"brx-starter-kit/handlers"
 	"brx-starter-kit/internal/rbac"
+	"brx-starter-kit/internal/setup"
 	"brx-starter-kit/models"
 	"brx-starter-kit/providers"
 	"brx-starter-kit/routes"
@@ -44,6 +45,8 @@ func main() {
 			fx.Provide(rbac.NewMiddleware),
 			fx.Provide(rbac.NewRBACHandler),
 			fx.Provide(rbac.NewAPIHandler),
+			fx.Provide(setup.NewService),
+			fx.Provide(setup.NewHandler),
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),
 			fx.Provide(handlers.NewMobileAuthHandler),

@@ -42,6 +42,8 @@ func main() {
 			jwt.Options,
 			fx.Provide(rbac.NewService),
 			fx.Provide(rbac.NewMiddleware),
+			fx.Provide(rbac.NewRBACHandler),
+			fx.Provide(rbac.NewAPIHandler),
 			fx.Provide(handlers.NewDashboardHandler),
 			fx.Provide(handlers.NewAuthHandler),
 			fx.Provide(handlers.NewMobileAuthHandler),

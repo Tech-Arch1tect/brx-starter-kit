@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"brx-starter-kit/handlers"
+	"brx-starter-kit/internal/rbac"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/config"
@@ -19,7 +20,7 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 )
 
-func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, userProvider jwtshared.UserProvider, cfg *config.Config) {
+func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHandler, authHandler *handlers.AuthHandler, mobileAuthHandler *handlers.MobileAuthHandler, sessionHandler *handlers.SessionHandler, totpHandler *handlers.TOTPHandler, rbacHandler *rbac.Handler, rbacAPIHandler *rbac.APIHandler, rbacMiddleware *rbac.Middleware, sessionManager *session.Manager, sessionService session.SessionService, rateLimitStore ratelimit.Store, inertiaService *inertia.Service, jwtSvc *jwtservice.Service, userProvider jwtshared.UserProvider, cfg *config.Config) {
 	e := srv.Echo()
 	e.Use(session.Middleware(sessionManager))
 
@@ -104,6 +105,22 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		protected.POST("/sessions/revoke-all-others", sessionHandler.RevokeAllOtherSessions)
 	}
 
+	// Admin routes - require admin role
+	if rbacHandler != nil && rbacMiddleware != nil {
+		admin := protected.Group("/admin")
+		admin.Use(rbacMiddleware.RequireRole("admin"))
+
+		// User management
+		admin.GET("/users", rbacHandler.ListUsers)
+		admin.GET("/users/:id/roles", rbacHandler.ShowUserRoles)
+		admin.POST("/users/assign-role", rbacHandler.AssignRole)
+		admin.POST("/users/revoke-role", rbacHandler.RevokeRole)
+
+		// Role and permission management
+		admin.GET("/roles", rbacHandler.ListRoles)
+		admin.GET("/permissions", rbacHandler.ListPermissions)
+	}
+
 	// JWT authentication api routes - for non-web clients (flutter)
 	if mobileAuthHandler != nil && jwtSvc != nil {
 		api := srv.Group("/api/v1")
@@ -143,5 +160,26 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		apiProtected.POST("/sessions", mobileAuthHandler.GetSessions)
 		apiProtected.POST("/sessions/revoke", mobileAuthHandler.RevokeSession)
 		apiProtected.POST("/sessions/revoke-all-others", mobileAuthHandler.RevokeAllOtherSessions)
+
+		// RBAC routes for JWT users
+		if rbacAPIHandler != nil && rbacMiddleware != nil {
+			// User permission checking
+			apiProtected.GET("/rbac/permissions", rbacAPIHandler.GetCurrentUserPermissions)
+			apiProtected.POST("/rbac/check-permission", rbacAPIHandler.CheckPermission)
+
+			// Admin routes - require admin role
+			apiAdmin := apiProtected.Group("/admin")
+			apiAdmin.Use(rbacMiddleware.RequireRoleJWT("admin"))
+
+			// User management
+			apiAdmin.GET("/users", rbacAPIHandler.ListUsers)
+			apiAdmin.GET("/users/:id/roles", rbacAPIHandler.GetUserRoles)
+			apiAdmin.POST("/users/assign-role", rbacAPIHandler.AssignRole)
+			apiAdmin.POST("/users/revoke-role", rbacAPIHandler.RevokeRole)
+
+			// Role and permission management
+			apiAdmin.GET("/roles", rbacAPIHandler.ListRoles)
+			apiAdmin.GET("/permissions", rbacAPIHandler.ListPermissions)
+		}
 	}
 }

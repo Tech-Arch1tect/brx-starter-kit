@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"brx-starter-kit/internal/rbac"
+	"brx-starter-kit/models"
+
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/middleware/jwtshared"
 	"github.com/tech-arch1tect/brx/services/auth"
@@ -17,8 +20,6 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-
-	"brx-starter-kit/models"
 )
 
 type MobileAuthHandler struct {
@@ -29,9 +30,10 @@ type MobileAuthHandler struct {
 	totpSvc         *totp.Service
 	sessionSvc      session.SessionService
 	logger          *logging.Service
+	rbacSvc         *rbac.Service
 }
 
-func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, refreshTokenSvc refreshtoken.RefreshTokenService, totpSvc *totp.Service, sessionSvc session.SessionService, logger *logging.Service) *MobileAuthHandler {
+func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice.Service, refreshTokenSvc refreshtoken.RefreshTokenService, totpSvc *totp.Service, sessionSvc session.SessionService, logger *logging.Service, rbacSvc *rbac.Service) *MobileAuthHandler {
 	return &MobileAuthHandler{
 		db:              db,
 		authSvc:         authSvc,
@@ -40,6 +42,7 @@ func NewMobileAuthHandler(db *gorm.DB, authSvc *auth.Service, jwtSvc *jwtservice
 		totpSvc:         totpSvc,
 		sessionSvc:      sessionSvc,
 		logger:          logger,
+		rbacSvc:         rbacSvc,
 	}
 }
 
@@ -314,6 +317,12 @@ func (h *MobileAuthHandler) Register(c echo.Context) error {
 			Error:   "user_exists",
 			Message: "Username or email already exists",
 		})
+	}
+
+	if err := h.rbacSvc.AssignUserRole(user.ID, "user"); err != nil {
+		h.logger.Error("failed to assign default user role",
+			zap.Uint("user_id", user.ID),
+			zap.Error(err))
 	}
 
 	if h.authSvc.IsEmailVerificationRequired() {

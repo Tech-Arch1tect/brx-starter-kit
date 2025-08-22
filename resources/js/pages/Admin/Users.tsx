@@ -4,15 +4,15 @@ import Layout from '../../components/Layout';
 import FlashMessages from '../../components/FlashMessages';
 
 interface User {
-  id: number;
+  ID: number;
   username: string;
   email: string;
-  created_at: string;
+  CreatedAt: string;
   roles: Role[];
 }
 
 interface Role {
-  id: number;
+  ID: number;
   name: string;
   description: string;
 }
@@ -69,7 +69,7 @@ export default function AdminUsers({ title, users }: Props) {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                     {users.map((user) => (
-                      <tr key={user.id}>
+                      <tr key={user.ID}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
@@ -93,7 +93,7 @@ export default function AdminUsers({ title, users }: Props) {
                           <div className="flex flex-wrap gap-2">
                             {user.roles.map((role) => (
                               <span
-                                key={role.id}
+                                key={role.ID}
                                 className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
                               >
                                 {role.name}
@@ -105,11 +105,11 @@ export default function AdminUsers({ title, users }: Props) {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {formatDate(user.created_at)}
+                          {formatDate(user.CreatedAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Link
-                            href={`/admin/users/${user.id}/roles`}
+                            href={`/admin/users/${user.ID}/roles`}
                             className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
                           >
                             Manage Roles

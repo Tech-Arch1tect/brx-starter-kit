@@ -20,13 +20,13 @@ import (
 )
 
 func main() {
-	var cfg config.Config
+	var cfg StarterKitConfig
 	if err := config.LoadConfig(&cfg); err != nil {
 		panic(err)
 	}
 
 	brx.New(
-		brx.WithConfig(&cfg),
+		brx.WithConfig(&cfg.Config),
 		brx.WithMail(),
 		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}, &refreshtoken.RefreshToken{}),
 		brx.WithSessions(),

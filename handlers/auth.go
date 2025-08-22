@@ -236,6 +236,11 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
+	if err := h.authSvc.ValidatePassword(req.Password); err != nil {
+		session.AddFlashError(c, err.Error())
+		return c.Redirect(http.StatusFound, "/auth/register")
+	}
+
 	hashedPassword, err := h.authSvc.HashPassword(req.Password)
 	if err != nil {
 		session.AddFlashError(c, err.Error())

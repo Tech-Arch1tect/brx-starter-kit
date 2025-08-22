@@ -112,18 +112,6 @@ func (h *Handler) ListRoles(c echo.Context) error {
 	})
 }
 
-func (h *Handler) ListPermissions(c echo.Context) error {
-	var permissions []models.Permission
-	if err := h.db.Find(&permissions).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch permissions")
-	}
-
-	return h.inertiaSvc.Render(c, "Admin/Permissions", map[string]any{
-		"title":       "Permission Management",
-		"permissions": permissions,
-	})
-}
-
 func NewRBACHandler(db *gorm.DB, inertiaSvc *inertia.Service, rbacSvc *Service) *Handler {
 	return NewHandler(db, inertiaSvc, rbacSvc)
 }

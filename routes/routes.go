@@ -123,9 +123,8 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 		admin.POST("/users/assign-role", rbacHandler.AssignRole)
 		admin.POST("/users/revoke-role", rbacHandler.RevokeRole)
 
-		// Role and permission management
+		// Role management
 		admin.GET("/roles", rbacHandler.ListRoles)
-		admin.GET("/permissions", rbacHandler.ListPermissions)
 	}
 
 	// JWT authentication api routes - for non-web clients (flutter)
@@ -184,9 +183,8 @@ func RegisterRoutes(srv *server.Server, dashboardHandler *handlers.DashboardHand
 			apiAdmin.POST("/users/assign-role", rbacAPIHandler.AssignRole)
 			apiAdmin.POST("/users/revoke-role", rbacAPIHandler.RevokeRole)
 
-			// Role and permission management
+			// Role management
 			apiAdmin.GET("/roles", rbacAPIHandler.ListRoles)
-			apiAdmin.GET("/permissions", rbacAPIHandler.ListPermissions)
 		}
 	}
 }

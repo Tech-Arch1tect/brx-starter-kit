@@ -134,21 +134,14 @@ func (h *APIHandler) ListRoles(c echo.Context) error {
 		})
 	}
 
-	return c.JSON(http.StatusOK, map[string]any{
-		"roles": roles,
-	})
-}
-
-func (h *APIHandler) ListPermissions(c echo.Context) error {
-	var permissions []models.Permission
-	if err := h.db.Find(&permissions).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to fetch permissions",
-		})
+	// Convert to consistent DTO format
+	roleInfos := make([]dto.RoleWithPermissions, len(roles))
+	for i, role := range roles {
+		roleInfos[i] = dto.ConvertRoleToRoleWithPermissions(role)
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{
-		"permissions": permissions,
+		"roles": roleInfos,
 	})
 }
 

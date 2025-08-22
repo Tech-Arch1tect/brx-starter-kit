@@ -23,7 +23,6 @@ export default function Layout({ children }: LayoutProps) {
       ? [
           { name: 'Users', href: '/admin/users' },
           { name: 'Roles', href: '/admin/roles' },
-          { name: 'Permissions', href: '/admin/permissions' },
         ]
       : []),
   ];

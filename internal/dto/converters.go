@@ -34,3 +34,27 @@ func ConvertUserToUserInfo(user models.User) UserInfo {
 		Roles:           roleInfos,
 	}
 }
+
+func ConvertPermissionToPermissionInfo(permission models.Permission) PermissionInfo {
+	return PermissionInfo{
+		ID:          permission.ID,
+		Name:        permission.Name,
+		Resource:    permission.Resource,
+		Action:      permission.Action,
+		Description: permission.Description,
+	}
+}
+
+func ConvertRoleToRoleWithPermissions(role models.Role) RoleWithPermissions {
+	permissionInfos := make([]PermissionInfo, len(role.Permissions))
+	for i, permission := range role.Permissions {
+		permissionInfos[i] = ConvertPermissionToPermissionInfo(permission)
+	}
+
+	return RoleWithPermissions{
+		ID:          role.ID,
+		Name:        role.Name,
+		Description: role.Description,
+		Permissions: permissionInfos,
+	}
+}

@@ -15,15 +15,17 @@ export default function Layout({ children }: LayoutProps) {
   const { isDark, toggleDarkMode } = useDarkMode();
 
   // Check if user has admin role
-  const isAdmin = user?.roles?.some(role => role.name === 'admin') || false;
-  
+  const isAdmin = user?.roles?.some((role) => role.name === 'admin') || false;
+
   const navigation = [
     { name: 'Dashboard', href: '/' },
-    ...(isAdmin ? [
-      { name: 'Users', href: '/admin/users' },
-      { name: 'Roles', href: '/admin/roles' },
-      { name: 'Permissions', href: '/admin/permissions' },
-    ] : [])
+    ...(isAdmin
+      ? [
+          { name: 'Users', href: '/admin/users' },
+          { name: 'Roles', href: '/admin/roles' },
+          { name: 'Permissions', href: '/admin/permissions' },
+        ]
+      : []),
   ];
 
   const handleLogout = () => {

@@ -34,7 +34,7 @@ export default function AdminUsers({ title, users }: Props) {
   return (
     <Layout>
       <Head title={title} />
-      
+
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="md:flex md:items-center md:justify-between">
           <div className="flex-1 min-w-0">
@@ -53,13 +53,22 @@ export default function AdminUsers({ title, users }: Props) {
                 <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
                         User
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
                         Roles
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
                         Joined
                       </th>
                       <th scope="col" className="relative px-6 py-3">
@@ -100,7 +109,9 @@ export default function AdminUsers({ title, users }: Props) {
                               </span>
                             ))}
                             {user.roles.length === 0 && (
-                              <span className="text-sm text-gray-400 dark:text-gray-500">No roles</span>
+                              <span className="text-sm text-gray-400 dark:text-gray-500">
+                                No roles
+                              </span>
                             )}
                           </div>
                         </td>

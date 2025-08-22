@@ -28,41 +28,49 @@ export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
 
   const assignRole = async (roleId: number) => {
     if (processing) return;
-    
+
     setProcessing(true);
-    router.post('/admin/users/assign-role', {
-      user_id: user.ID,
-      role_id: roleId,
-    }, {
-      headers: {
-        'X-CSRF-Token': csrfToken || '',
+    router.post(
+      '/admin/users/assign-role',
+      {
+        user_id: user.ID,
+        role_id: roleId,
       },
-      onFinish: () => setProcessing(false),
-    });
+      {
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+        },
+        onFinish: () => setProcessing(false),
+      }
+    );
   };
 
   const revokeRole = async (roleId: number) => {
     if (processing) return;
-    
+
     setProcessing(true);
-    router.post('/admin/users/revoke-role', {
-      user_id: user.ID,
-      role_id: roleId,
-    }, {
-      headers: {
-        'X-CSRF-Token': csrfToken || '',
+    router.post(
+      '/admin/users/revoke-role',
+      {
+        user_id: user.ID,
+        role_id: roleId,
       },
-      onFinish: () => setProcessing(false),
-    });
+      {
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+        },
+        onFinish: () => setProcessing(false),
+      }
+    );
   };
 
-  const userRoleIds = user.roles.map(role => role.ID);
-  const availableRoles = allRoles.filter(role => !userRoleIds.includes(role.ID));
+  const userRoleIds = user.roles.map((role) => role.ID);
+  const availableRoles = allRoles.filter((role) => !userRoleIds.includes(role.ID));
 
   return (
     <Layout>
       <Head title={title} />
-      
+
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="md:flex md:items-center md:justify-between">
           <div className="flex-1 min-w-0">
@@ -89,7 +97,9 @@ export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Current Roles */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Current Roles</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Current Roles
+            </h3>
             <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
               {user.roles.length > 0 ? (
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -100,7 +110,9 @@ export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white capitalize">
                             {role.name}
                           </h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{role.description}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {role.description}
+                          </p>
                         </div>
                         <button
                           onClick={() => revokeRole(role.ID)}
@@ -123,7 +135,9 @@ export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
 
           {/* Available Roles */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Available Roles</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              Available Roles
+            </h3>
             <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
               {availableRoles.length > 0 ? (
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -134,7 +148,9 @@ export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white capitalize">
                             {role.name}
                           </h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{role.description}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {role.description}
+                          </p>
                         </div>
                         <button
                           onClick={() => assignRole(role.ID)}

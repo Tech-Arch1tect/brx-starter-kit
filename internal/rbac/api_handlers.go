@@ -63,9 +63,20 @@ func (h *APIHandler) GetUserRoles(c echo.Context) error {
 		})
 	}
 
+	userInfo := dto.ConvertUserToUserInfo(user)
+
+	roleInfos := make([]dto.RoleInfo, len(allRoles))
+	for i, role := range allRoles {
+		roleInfos[i] = dto.RoleInfo{
+			ID:          role.ID,
+			Name:        role.Name,
+			Description: role.Description,
+		}
+	}
+
 	return c.JSON(http.StatusOK, map[string]any{
-		"user":      user,
-		"all_roles": allRoles,
+		"user":      userInfo,
+		"all_roles": roleInfos,
 	})
 }
 

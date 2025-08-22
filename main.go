@@ -5,6 +5,7 @@ import (
 	"brx-starter-kit/models"
 	"brx-starter-kit/providers"
 	"brx-starter-kit/routes"
+	"brx-starter-kit/seeds"
 
 	"github.com/tech-arch1tect/brx"
 	"github.com/tech-arch1tect/brx/config"
@@ -17,6 +18,7 @@ import (
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/fx"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -28,7 +30,7 @@ func main() {
 	brx.New(
 		brx.WithConfig(&cfg.Config),
 		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}, &refreshtoken.RefreshToken{}),
+		brx.WithDatabase(&models.User{}, &models.Role{}, &models.Permission{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}, &refreshtoken.RefreshToken{}),
 		brx.WithSessions(),
 		brx.WithInertia(),
 		brx.WithAuth(),
@@ -51,6 +53,11 @@ func main() {
 				fx.As(new(jwtshared.UserProvider)),
 			)),
 			fx.Invoke(routes.RegisterRoutes),
+			fx.Invoke(func(db *gorm.DB) {
+				if err := seeds.SeedRBACData(db); err != nil {
+					panic(err)
+				}
+			}),
 		),
 	).Run()
 }

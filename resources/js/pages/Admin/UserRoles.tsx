@@ -4,14 +4,14 @@ import Layout from '../../components/Layout';
 import FlashMessages from '../../components/FlashMessages';
 
 interface User {
-  id: number;
+  ID: number;
   username: string;
   email: string;
   roles: Role[];
 }
 
 interface Role {
-  id: number;
+  ID: number;
   name: string;
   description: string;
 }
@@ -20,9 +20,10 @@ interface Props {
   title: string;
   user: User;
   allRoles: Role[];
+  csrfToken?: string;
 }
 
-export default function UserRoles({ title, user, allRoles }: Props) {
+export default function UserRoles({ title, user, allRoles, csrfToken }: Props) {
   const [processing, setProcessing] = useState(false);
 
   const assignRole = async (roleId: number) => {
@@ -30,9 +31,12 @@ export default function UserRoles({ title, user, allRoles }: Props) {
     
     setProcessing(true);
     router.post('/admin/users/assign-role', {
-      user_id: user.id,
+      user_id: user.ID,
       role_id: roleId,
     }, {
+      headers: {
+        'X-CSRF-Token': csrfToken || '',
+      },
       onFinish: () => setProcessing(false),
     });
   };
@@ -42,15 +46,18 @@ export default function UserRoles({ title, user, allRoles }: Props) {
     
     setProcessing(true);
     router.post('/admin/users/revoke-role', {
-      user_id: user.id,
+      user_id: user.ID,
       role_id: roleId,
     }, {
+      headers: {
+        'X-CSRF-Token': csrfToken || '',
+      },
       onFinish: () => setProcessing(false),
     });
   };
 
-  const userRoleIds = user.roles.map(role => role.id);
-  const availableRoles = allRoles.filter(role => !userRoleIds.includes(role.id));
+  const userRoleIds = user.roles.map(role => role.ID);
+  const availableRoles = allRoles.filter(role => !userRoleIds.includes(role.ID));
 
   return (
     <Layout>
@@ -87,7 +94,7 @@ export default function UserRoles({ title, user, allRoles }: Props) {
               {user.roles.length > 0 ? (
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {user.roles.map((role) => (
-                    <li key={role.id} className="px-6 py-4">
+                    <li key={role.ID} className="px-6 py-4">
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white capitalize">
@@ -96,7 +103,7 @@ export default function UserRoles({ title, user, allRoles }: Props) {
                           <p className="text-sm text-gray-500 dark:text-gray-400">{role.description}</p>
                         </div>
                         <button
-                          onClick={() => revokeRole(role.id)}
+                          onClick={() => revokeRole(role.ID)}
                           disabled={processing}
                           className="ml-4 bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-800 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
                         >
@@ -121,7 +128,7 @@ export default function UserRoles({ title, user, allRoles }: Props) {
               {availableRoles.length > 0 ? (
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {availableRoles.map((role) => (
-                    <li key={role.id} className="px-6 py-4">
+                    <li key={role.ID} className="px-6 py-4">
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-sm font-medium text-gray-900 dark:text-white capitalize">
@@ -130,7 +137,7 @@ export default function UserRoles({ title, user, allRoles }: Props) {
                           <p className="text-sm text-gray-500 dark:text-gray-400">{role.description}</p>
                         </div>
                         <button
-                          onClick={() => assignRole(role.id)}
+                          onClick={() => assignRole(role.ID)}
                           disabled={processing}
                           className="ml-4 bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800 text-green-800 dark:text-green-200 text-xs font-medium px-2.5 py-0.5 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                         >

@@ -29,17 +29,22 @@ func main() {
 		panic(err)
 	}
 
-	brx.New(
-		brx.WithConfig(&cfg.Config),
-		brx.WithMail(),
-		brx.WithDatabase(&models.User{}, &models.Role{}, &models.Permission{}, &session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{}, &auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{}, &revocation.RevokedToken{}, &refreshtoken.RefreshToken{}),
-		brx.WithSessions(),
-		brx.WithInertia(),
-		brx.WithAuth(),
-		brx.WithTOTP(),
-		brx.WithJWT(),
-		brx.WithJWTRevocation(),
-		brx.WithFxOptions(
+	app, err := brx.NewApp().
+		WithConfig(&cfg.Config).
+		WithMail().
+		WithDatabase(
+			&models.User{}, &models.Role{}, &models.Permission{},
+			&session.UserSession{}, &totp.TOTPSecret{}, &totp.UsedCode{},
+			&auth.PasswordResetToken{}, &auth.EmailVerificationToken{}, &auth.RememberMeToken{},
+			&revocation.RevokedToken{}, &refreshtoken.RefreshToken{},
+		).
+		WithSessions().
+		WithInertia().
+		WithAuth().
+		WithTOTP().
+		WithJWT().
+		WithJWTRevocation().
+		WithFxOptions(
 			jwt.Options,
 			fx.Provide(rbac.NewService),
 			fx.Provide(rbac.NewMiddleware),
@@ -66,6 +71,12 @@ func main() {
 					panic(err)
 				}
 			}),
-		),
-	).Run()
+		).
+		Build()
+
+	if err != nil {
+		panic(err)
+	}
+
+	app.Run()
 }

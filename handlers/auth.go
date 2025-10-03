@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"brx-starter-kit/internal/rbac"
+	"brx-starter-kit/models"
+
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/inertia"
@@ -15,8 +18,6 @@ import (
 	"github.com/tech-arch1tect/brx/session"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-
-	"brx-starter-kit/models"
 )
 
 func (h *AuthHandler) setRememberMeCookie(c echo.Context, token string, expiresAt time.Time) {
@@ -71,45 +72,23 @@ type AuthHandler struct {
 	authSvc    *auth.Service
 	totpSvc    *totp.Service
 	logger     *logging.Service
+	rbacSvc    *rbac.Service
 }
 
-func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service, totpSvc *totp.Service, logger *logging.Service) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, inertiaSvc *inertia.Service, authSvc *auth.Service, totpSvc *totp.Service, logger *logging.Service, rbacSvc *rbac.Service) *AuthHandler {
 	return &AuthHandler{
 		db:         db,
 		inertiaSvc: inertiaSvc,
 		authSvc:    authSvc,
 		totpSvc:    totpSvc,
 		logger:     logger,
+		rbacSvc:    rbacSvc,
 	}
 }
 
 func (h *AuthHandler) ShowLogin(c echo.Context) error {
 	if session.IsAuthenticated(c) {
 		return c.Redirect(http.StatusFound, "/")
-	}
-
-	if h.authSvc.IsRememberMeEnabled() {
-		cookie, err := c.Cookie("remember_me")
-		if err == nil && cookie.Value != "" {
-			rememberToken, err := h.authSvc.ValidateRememberMeToken(cookie.Value)
-			if err == nil {
-				var user models.User
-				if err := h.db.First(&user, rememberToken.UserID).Error; err == nil {
-					session.LoginWithTOTPService(c, user.ID, h.totpSvc)
-
-					if h.authSvc.ShouldRotateRememberMeToken() {
-						newToken, err := h.authSvc.RotateRememberMeToken(cookie.Value)
-						if err != nil {
-							h.logger.Error("failed to rotate remember me token", zap.Error(err))
-						} else {
-							h.setRememberMeCookie(c, newToken.Token, newToken.ExpiresAt)
-						}
-					}
-
-					return c.Redirect(http.StatusFound, "/")
-				}
-			}
-		}
 	}
 
 	var rememberMeDays int
@@ -233,6 +212,11 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/auth/register")
 	}
 
+	if err := h.authSvc.ValidatePassword(req.Password); err != nil {
+		session.AddFlashError(c, err.Error())
+		return c.Redirect(http.StatusFound, "/auth/register")
+	}
+
 	hashedPassword, err := h.authSvc.HashPassword(req.Password)
 	if err != nil {
 		session.AddFlashError(c, err.Error())
@@ -248,6 +232,10 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if err := h.db.Create(&user).Error; err != nil {
 		session.AddFlashError(c, "Username or email already exists")
 		return c.Redirect(http.StatusFound, "/auth/register")
+	}
+
+	if err := h.rbacSvc.AssignUserRole(user.ID, "user"); err != nil {
+		h.logger.Error("failed to assign default user role", zap.Uint("user_id", user.ID), zap.Error(err))
 	}
 
 	if h.authSvc.IsEmailVerificationRequired() {

@@ -14,7 +14,18 @@ export default function Layout({ children }: LayoutProps) {
   const csrfToken = props.csrfToken as string | undefined;
   const { isDark, toggleDarkMode } = useDarkMode();
 
-  const navigation = [{ name: 'Dashboard', href: '/' }];
+  // Check if user has admin role
+  const isAdmin = user?.roles?.some((role) => role.name === 'admin') || false;
+
+  const navigation = [
+    { name: 'Dashboard', href: '/' },
+    ...(isAdmin
+      ? [
+          { name: 'Users', href: '/admin/users' },
+          { name: 'Roles', href: '/admin/roles' },
+        ]
+      : []),
+  ];
 
   const handleLogout = () => {
     router.post(

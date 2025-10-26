@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tech-arch1tect/brx/services/auth"
 	"github.com/tech-arch1tect/brx/services/inertia"
+	"github.com/tech-arch1tect/brx/services/logging"
 	"github.com/tech-arch1tect/brx/services/totp"
 	"github.com/tech-arch1tect/brx/session"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"brx-starter-kit/models"
@@ -18,14 +21,16 @@ type TOTPHandler struct {
 	inertiaSvc *inertia.Service
 	totpSvc    *totp.Service
 	authSvc    *auth.Service
+	logger     *logging.Service
 }
 
-func NewTOTPHandler(db *gorm.DB, inertiaSvc *inertia.Service, totpSvc *totp.Service, authSvc *auth.Service) *TOTPHandler {
+func NewTOTPHandler(db *gorm.DB, inertiaSvc *inertia.Service, totpSvc *totp.Service, authSvc *auth.Service, logger *logging.Service) *TOTPHandler {
 	return &TOTPHandler{
 		db:         db,
 		inertiaSvc: inertiaSvc,
 		totpSvc:    totpSvc,
 		authSvc:    authSvc,
+		logger:     logger,
 	}
 }
 
@@ -194,6 +199,30 @@ func (h *TOTPHandler) VerifyTOTP(c echo.Context) error {
 	}
 
 	session.SetTOTPVerified(c, true)
+
+	if pendingRememberMe := session.Get(c, "pending_remember_me"); pendingRememberMe == true {
+		if h.authSvc != nil && h.authSvc.IsRememberMeEnabled() {
+			rememberToken, err := h.authSvc.CreateRememberMeToken(userID)
+			if err != nil {
+				if h.logger != nil {
+					h.logger.Error("failed to create remember me token after TOTP verification",
+						zap.Uint("user_id", userID),
+						zap.Error(err),
+					)
+				}
+			} else {
+				setRememberMeCookie(c, h.authSvc, rememberToken.Token, rememberToken.ExpiresAt)
+				if h.logger != nil {
+					h.logger.Info("remember me token created after TOTP verification",
+						zap.Uint("user_id", userID),
+						zap.Time("expires_at", rememberToken.ExpiresAt),
+					)
+				}
+			}
+		}
+		session.Set(c, "pending_remember_me", nil)
+	}
+
 	return c.Redirect(http.StatusFound, "/")
 }
 
@@ -204,4 +233,30 @@ func (h *TOTPHandler) GetTOTPStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{
 		"enabled": enabled,
 	})
+}
+
+func setRememberMeCookie(c echo.Context, authSvc *auth.Service, token string, expiresAt time.Time) {
+	sameSite := http.SameSiteLaxMode
+	switch authSvc.GetRememberMeCookieSameSite() {
+	case "strict":
+		sameSite = http.SameSiteStrictMode
+	case "none":
+		sameSite = http.SameSiteNoneMode
+	case "lax":
+		sameSite = http.SameSiteLaxMode
+	}
+
+	maxAge := int(time.Until(expiresAt).Seconds())
+
+	cookie := &http.Cookie{
+		Name:     "remember_me",
+		Value:    token,
+		Expires:  expiresAt,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   authSvc.GetRememberMeCookieSecure(),
+		SameSite: sameSite,
+		Path:     "/",
+	}
+	c.SetCookie(cookie)
 }

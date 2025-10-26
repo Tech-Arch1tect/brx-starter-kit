@@ -31,10 +31,13 @@ func (h *AuthHandler) setRememberMeCookie(c echo.Context, token string, expiresA
 		sameSite = http.SameSiteLaxMode
 	}
 
+	maxAge := int(time.Until(expiresAt).Seconds())
+
 	cookie := &http.Cookie{
 		Name:     "remember_me",
 		Value:    token,
 		Expires:  expiresAt,
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   h.authSvc.GetRememberMeCookieSecure(),
 		SameSite: sameSite,
@@ -157,18 +160,22 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	session.LoginWithTOTPService(c, user.ID, h.totpSvc)
 
 	if h.authSvc.IsRememberMeEnabled() && req.RememberMe {
-		rememberToken, err := h.authSvc.CreateRememberMeToken(user.ID)
-		if err != nil {
-			h.logger.Error("failed to create remember me token",
-				zap.Uint("user_id", user.ID),
-				zap.Error(err),
-			)
+		if h.totpSvc != nil && h.totpSvc.IsUserTOTPEnabled(user.ID) {
+			session.Set(c, "pending_remember_me", true)
 		} else {
-			h.setRememberMeCookie(c, rememberToken.Token, rememberToken.ExpiresAt)
-			h.logger.Info("remember me token created",
-				zap.Uint("user_id", user.ID),
-				zap.Time("expires_at", rememberToken.ExpiresAt),
-			)
+			rememberToken, err := h.authSvc.CreateRememberMeToken(user.ID)
+			if err != nil {
+				h.logger.Error("failed to create remember me token",
+					zap.Uint("user_id", user.ID),
+					zap.Error(err),
+				)
+			} else {
+				h.setRememberMeCookie(c, rememberToken.Token, rememberToken.ExpiresAt)
+				h.logger.Info("remember me token created",
+					zap.Uint("user_id", user.ID),
+					zap.Time("expires_at", rememberToken.ExpiresAt),
+				)
+			}
 		}
 	}
 
